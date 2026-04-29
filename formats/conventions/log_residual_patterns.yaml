@@ -1,0 +1,53 @@
+# Cross-solver log-file residual extraction patterns.
+#
+# Most CFD solvers print residual lines to stdout/log file with similar
+# formats. These regex patterns try to capture residual history regardless
+# of solver, useful for Discovery Agent and as a Path B fallback.
+
+scope: cross_solver_log_parsing
+
+residual_line_patterns:
+
+  - solver_family: openfoam
+    iteration_marker: 'Time\s*=\s*([\d.eE+-]+)'
+    residual_pattern: 'Solving for\s+(\w+).*?Initial residual\s*=\s*([\d.eE+-]+).*?Final residual\s*=\s*([\d.eE+-]+)'
+    capture: [variable, initial, final]
+    confidence: HIGH
+
+  - solver_family: fluent
+    description: "Fluent prints multi-column tables"
+    header_pattern: 'iter\s+continuity\s+x-velocity\s+y-velocity'
+    multi_column: true
+    confidence: HIGH
+
+  - solver_family: su2
+    description: "SU2 uses pipe-delimited tables"
+    pattern: '\|.*?\|\s+(-?\d+\.\d+)\s+\|\s+(-?\d+\.\d+)'
+    confidence: MED
+
+  - solver_family: cfx
+    description: "CFX residual block in .out file"
+    pattern: 'OUTER LOOP ITERATION =\s*(\d+).*?MAX RES\s*=\s*([\d.eE+-]+)'
+    confidence: MED
+
+  - solver_family: starccm
+    description: "STAR-CCM+ uses iteration table in .out report"
+    confidence: LOW                          # macro-export dependent
+
+iteration_marker_patterns:
+  description: "Patterns to count iteration / time steps from log"
+  patterns:
+    - 'Time\s*=\s*([\d.eE+-]+)'              # OpenFOAM
+    - 'iter\s+(\d+)'                          # Fluent
+    - 'Iteration\s+(\d+)'                     # SU2
+    - 'OUTER LOOP\s+=\s*(\d+)'                # CFX
+
+solver_banner_patterns:
+  description: "First-line banner that identifies the solver from any log"
+  patterns:
+    - {regex: 'OpenFOAM:.*?Version:\s*(\S+)',     extracts: [openfoam, "$1"]}
+    - {regex: 'ANSYS Fluent.*Release\s+(\S+)',     extracts: [fluent, "$1"]}
+    - {regex: 'SU2 v(\S+)',                        extracts: [su2, "$1"]}
+    - {regex: 'STAR-CCM\+ Version:\s*(\S+)',       extracts: [starccm, "$1"]}
+    - {regex: 'LS-DYNA.*Version\s*(\S+)',          extracts: [lsdyna, "$1"]}
+    - {regex: 'Abaqus/Standard\s+(\S+)',           extracts: [abaqus, "$1"]}

@@ -1,0 +1,202 @@
+# OpenFOAM field-to-source extraction mapping.
+# Source: sim-parse/docs/extraction_reference.md §3.3 (信息族 A-G)
+#
+# Each entry tells: "to extract <canonical field>, look at <source>".
+# Used by Discovery Agent and as the structured form of extraction_reference.md.
+
+format: openfoam
+
+extractions:
+
+  # ─── Mesh (族 A) ──────────────────────────────────────────────────────────
+  mesh.nCells:
+    tier: 3
+    source: "constant/polyMesh/owner header note 'nCells: NNN'"
+    type: int
+    extraction: regex_from_text_header
+
+  mesh.nPoints:
+    tier: 3
+    source: "constant/polyMesh/points header / first numeric line"
+    type: int
+
+  mesh.nFaces:
+    tier: 3
+    source: "constant/polyMesh/faces header"
+    type: int
+
+  mesh.nInternalFaces:
+    tier: 3
+    source: "constant/polyMesh/owner header"
+    type: int
+
+  mesh.boundary_patches:
+    tier: 3
+    source: "constant/polyMesh/boundary"
+    type: list_of_dict
+    fields_per_patch: [name, type, nFaces, startFace]
+
+  mesh.bounding_box:
+    tier: 4
+    source: "constant/polyMesh/points (full read via VTK)"
+    type: dict
+    requires_vtk: true
+
+  # ─── Fields (族 B) ────────────────────────────────────────────────────────
+  fields.variable_names:
+    tier: 2
+    source: "filenames in time directories (excluding .gz suffix)"
+    type: list_str
+
+  fields.variable_class:
+    tier: 3
+    source: "field file FoamFile::class field"
+    type: str
+    examples: [volScalarField, volVectorField, volTensorField, surfaceScalarField]
+
+  fields.variable_dimensions:
+    tier: 3
+    source: "field file 'dimensions' line"
+    format: "[kg m s K mol A cd]"
+
+  fields.boundary_conditions:
+    tier: 3
+    source: "field file boundaryField{...} block"
+    type: dict_per_patch_per_field
+
+  fields.variable_ranges:
+    tier: 4
+    source: "VTK reader internalField → numpy.min/max/mean"
+    requires_vtk: true
+
+  # ─── Setup (族 C) ─────────────────────────────────────────────────────────
+  setup.application:
+    tier: 1
+    source: "system/controlDict::application"
+
+  setup.time_control:
+    tier: 3
+    source: "system/controlDict"
+    keys: [startTime, endTime, deltaT, writeInterval, writeFormat]
+
+  setup.discretization:
+    tier: 3
+    source: "system/fvSchemes"
+
+  setup.linear_solvers:
+    tier: 3
+    source: "system/fvSolution"
+
+  setup.turbulence:
+    tier: 3
+    source: "constant/turbulenceProperties"
+    plus: "constant/RASProperties or constant/LESProperties (legacy)"
+
+  setup.thermophysics:
+    tier: 3
+    source: "constant/thermophysicalProperties"
+
+  setup.chemistry:
+    tier: 3
+    source: "constant/chemistryProperties"
+    auxiliary: "constant/reactions, chemkin/*.inp"
+
+  setup.combustion_model:
+    tier: 3
+    source: "constant/combustionProperties::combustionModel"
+
+  setup.spray:
+    tier: 3
+    source: "constant/sprayCloudProperties"
+    optional: true
+
+  setup.gravity:
+    tier: 3
+    source: "constant/g"
+    optional: true
+
+  setup.fvOptions:
+    tier: 3
+    source: "constant/MRFProperties or system/fvOptions"
+    optional: true
+
+  # ─── Lagrangian (族 D) ────────────────────────────────────────────────────
+  lagrangian.has_lagrangian:
+    tier: 1
+    source: "<time>/lagrangian/ directory existence"
+    type: bool
+
+  lagrangian.cloud_names:
+    tier: 2
+    source: "<time>/lagrangian/<cloud>/ subdirectories"
+    type: list_str
+
+  lagrangian.particle_count:
+    tier: 4
+    source: "VTK reader nParticle / positions field length"
+    requires_vtk: true
+
+  # ─── Run state (族 E) ─────────────────────────────────────────────────────
+  runstate.time_steps:
+    tier: 2
+    source: "top-level numeric directory names"
+    type: list_float
+
+  runstate.latest_time:
+    tier: 2
+    source: "max(time_steps)"
+
+  runstate.residual_history:
+    tier: 4
+    source: "log file regex 'Solving for X, Initial residual = N, Final residual = M'"
+    type: dict_per_variable
+
+  runstate.convergence_orders:
+    tier: 4
+    source: "log10(initial_first / final_last) per variable"
+    type: dict
+
+  # ─── Post-processing (族 F) ───────────────────────────────────────────────
+  postproc.forces_history:
+    tier: 4
+    source: "postProcessing/forces*/<time>/forceCoeffs.dat"
+    type: csv_time_series
+    columns: [t, Cl, Cd, Cm]
+    optional: true
+
+  postproc.probes:
+    tier: 4
+    source: "postProcessing/probes/<time>/<var>"
+    optional: true
+
+  postproc.monitors:
+    tier: 4
+    source: "postProcessing/<name>/<time>/*.dat"
+    optional: true
+
+  # ─── Auxiliary (族 G) ─────────────────────────────────────────────────────
+  aux.log_files:
+    tier: 2
+    source: "log.* at top-level + processor*/log.*"
+    type: list_str
+
+  aux.scripts:
+    tier: 2
+    source: "Allrun, Allclean, Allmesh files"
+    type: list_str
+
+  aux.openfoam_version:
+    tier: 1
+    source: "FoamFile banner 'Version:' field of any dict file"
+    fallback_source: "log banner version line"
+
+  aux.case_origin_path:
+    tier: 3
+    source: "log banner 'Case :' line"
+    type: str
+    optional: true
+
+  aux.external_resources:
+    tier: 2
+    source: "chemkin/, constant/triSurface/, constant/geometry/"
+    type: list_str

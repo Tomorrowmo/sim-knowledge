@@ -1,0 +1,99 @@
+# ANSYS Fluent — case + dat format identification.
+# Source: extraction_reference.md §4
+
+format: fluent
+description: "ANSYS Fluent — CFD; legacy single-files (.cas/.dat) and CFF/HDF5 variant (V19+)"
+
+identification:
+  variants:
+
+    - name: legacy
+      type: extension_then_section_check
+      extensions: [".cas", ".dat", ".cas.gz", ".dat.gz"]
+      signature_check:
+        description: "Read first 64 bytes; expect Fluent section markers"
+        regex_or_bytes: '\(0|\(1|\(2'           # Fluent text section markers
+      confidence: HIGH
+      pairing: "<case>.cas + <case>.dat must be present together"
+
+    - name: cff_hdf5
+      type: hdf5_with_attr
+      prerequisite: hdf5_signature
+      attr_check: {root_attr: "Solver", value: "Fluent"}
+      extensions: [".cas.h5", ".dat.h5", ".h5"]
+      confidence: HIGH
+
+reader_tool:
+  legacy: "vtkmodules.vtkIOGeometry.vtkFLUENTReader"
+  cff: "vtkmodules.vtkIOFLUENTCFF.vtkFLUENTCFFReader"
+
+structure_legacy:
+  format: "Custom ASCII/binary section-based"
+  notable_sections:
+    "0":  comment
+    "1":  header
+    "2":  dimensions (2D/3D)
+    "10": nodes (coordinates)
+    "12": cells (connectivity)
+    "13": faces (boundary)
+    "39": cell zone conditions (materials, BC)
+
+structure_cff:
+  format: "HDF5 hierarchical"
+  top_level_groups:
+    - meshes/
+    - results/
+    - settings/
+
+quirks:
+  - id: gzip_transparent
+    description: ".cas.gz / .dat.gz — Fluent reads gzip transparently; sim-parse must too"
+    detect:
+      - "filename ends with .cas.gz or .dat.gz"
+      - "file has gzip magic 1F 8B"
+    workaround: |
+      sim-parse Tier 1 verifies the gzip magic; vtkFLUENTReader reads gzipped
+      files automatically (no manual decompression needed in Tier 4+).
+      Sub-format tag in identity dict = 'legacy_gz' to distinguish.
+    confidence: HIGH
+
+  - id: cas_dat_pairing
+    description: "Legacy .cas (mesh+model) and .dat (results) must pair"
+    detect: "single .cas without matching .dat"
+    workaround: "Tier 1 only; field stats need .dat"
+
+  - id: cff_version_dependent
+    description: "CFF/HDF5 only V19+; older Fluent can't write/read"
+    detect: "vtkFLUENTCFFReader fails on .cas.h5 with old version attr"
+    workaround: "Fall back to legacy reader if CFF fails"
+
+  - id: multi_cell_zone_default
+    description: "Fluent uses multiple cell zones (fluid/solid/rotating)"
+    detect: ".cas section 39 has multiple zones"
+    affects: "Output is vtkMultiBlockDataSet not single grid"
+
+  - id: report_files_separate
+    description: "Force/mass-flow reports written to separate .out files"
+    detect: "report-*.out files in case directory"
+    affects: "Tier 4 monitor history extraction"
+    workaround: "Parse .out files as CSV time-series"
+
+  - id: udf_custom_fields
+    description: "User-Defined Memory (UDM) creates non-semantic field names"
+    examples: [udm-0, udm-1, udm-2]
+    workaround: "Carry as opaque scalar fields; can't auto-interpret"
+
+  - id: chinese_localization
+    description: "Localized Fluent versions may have non-ASCII strings in .cas"
+    detect: ".cas decode fails with default encoding"
+    workaround: "Decode as UTF-8 with errors='replace'"
+
+variable_naming_convention:
+  description: "Fluent uses lower-case-with-hyphens naming"
+  examples:
+    - velocity-magnitude
+    - x-velocity, y-velocity, z-velocity
+    - static-temperature
+    - mf_oh                                 # mass fraction of OH
+    - mass-imbalance
+    - wall-shear-stress

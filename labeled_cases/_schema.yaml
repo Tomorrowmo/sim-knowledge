@@ -1,0 +1,64 @@
+# labeled_cases ground_truth.yaml schema
+#
+# Every <case_id>/ground_truth.yaml must conform to this schema.
+# Used by sim-parse / sim-query for automatic threshold calibration.
+
+schema_version: 1
+
+required_fields:
+  case_id:
+    type: string
+    description: "Unique identifier (folder name typically matches)"
+
+  case_path:
+    type: string
+    description: "Absolute path or path relative to sim-knowledge root"
+
+  labels:
+    type: dict
+    description: "Map of intent_id → ground truth value"
+    examples:
+      - is_extinguished: false
+      - is_steady_state_converged: true
+      - mach_regime: subsonic
+      - max_stress_exceeds_yield: false
+
+  context:
+    type: dict
+    description: "Physical context for threshold matching (fuel/pressure/...)"
+    optional_keys:
+      - fuel              # CH4 / H2 / kerosene / ...
+      - pressure_atm
+      - solver            # reactingFoam / simpleFoam / fluent / ...
+      - combustion_model
+      - chemistry_mechanism
+      - turbulence_model
+      - geometry_class    # axisymmetric_wedge / 3d / 2d / ...
+
+  labeled_by:
+    type: string
+    description: "Person or process that labeled this case"
+
+  labeled_at:
+    type: string
+    format: ISO8601
+    description: "Date of labeling"
+
+optional_fields:
+  notes:
+    type: string
+    description: "Free-text notes about why this case is labeled this way"
+
+  evidence:
+    type: dict
+    description: "Specific signals supporting the labels (Tier 4 outputs)"
+    examples:
+      - {Qdot_max: 7.7e8, T_max: 1998, OH_max: 0.003}
+
+  case_origin_path:
+    type: string
+    description: "Original path on the labeling person's machine (audit trail)"
+
+  references:
+    type: list
+    description: "Related papers, tutorials, prior work"

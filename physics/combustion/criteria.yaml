@@ -1,0 +1,177 @@
+# Combustion physics judgment criteria.
+#
+# Source: sim-parse/docs/criteria_reference.md §5
+# Schema: same as sim-parse/src/sim_parse/core/canonical/qoi_rules.yaml
+#         (qoi_engine.py understands `pluck` and `voting` rule types)
+#
+# Migration history: this file is the canonical home of combustion judgment
+# rules. sim-parse used to embed a copy in core/canonical/qoi_rules.yaml.
+# Eventually sim-parse will load this file directly when sim-knowledge is
+# installed alongside.
+
+domain: combustion
+domain_description: "Combustion physics — extinction / ignition / completeness"
+
+intents:
+
+  - name: is_extinguished
+    description: "Flame extinction judgment (combustion only) — Phase 2 expression-based"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 2
+    required_paths:
+      - "tier_3.combustion.combustionModel"
+    criteria:
+      - name: low_heat_release
+        path: "tier_4.variable_ranges.Qdot.max"
+        op: "<"
+        threshold: 1.0e6              # W/m^3, default for CH4-air @ 1 atm
+
+      - name: low_temperature_excess
+        # Phase 2: real physics criterion (T_max - T_inlet) < 100K
+        # Falls back to T_inlet=300K if BC extraction failed.
+        expression: "T_max - T_inlet"
+        inputs:
+          T_max:
+            path: "tier_4.variable_ranges.T.max"
+          T_inlet:
+            path: "tier_3.bc.T_inlet"
+            fallback: 300.0
+        op: "<"
+        threshold: 100.0              # K above inlet → flame extinct
+
+      - name: no_oh_radical
+        path: "tier_4.variable_ranges.OH.max"
+        op: "<"
+        threshold: 1.0e-6
+        skip_if_missing: true         # OH may not exist in simplified mech
+
+    reference:
+      - "Williams 1985 *Combustion Theory* Ch.5 (临界拉伸率)"
+      - "Peters 2000 *Turbulent Combustion* §2.4 (Karlovitz number)"
+      - "Poinsot & Veynante 2005 *Theoretical and Numerical Combustion* Ch.5"
+    confidence_when_all_match: HIGH
+    confidence_when_majority_match: MED
+    validation_cases:
+      - sim-knowledge/labeled_cases/combustion_extinction/DLR_A_cavity_normal/
+
+  - name: temperature_excess_above_inlet
+    description: "Real T excess above inlet — replaces Phase-1 absolute-T proxy"
+    output_type: scalar
+    unit: K
+    type: expression
+    expression: "T_max - T_inlet"
+    inputs:
+      T_max:
+        path: "tier_4.variable_ranges.T.max"
+      T_inlet:
+        path: "tier_3.bc.T_inlet"
+        fallback: 300.0
+    confidence: HIGH
+
+  - name: heat_release_collapse_ratio
+    description: "Ratio of current heat release to peak (flame strength indicator)"
+    output_type: scalar
+    unit: "1"
+    type: expression
+    expression: "Qdot_last / Qdot_peak"
+    # Genuine time-series rule: needs Qdot at last time AND its all-time peak.
+    # Tier 4 currently only emits a single-snapshot view, so qoi_engine will
+    # mark this rule as skipped_static_snapshot rather than fabricate a 1.0.
+    temporal_requirement: time_series
+    inputs:
+      Qdot_last:
+        # When Tier 4 grows time-series stats, point this at e.g.
+        #   tier_4.time_series.Qdot.last_value
+        path: "tier_4.time_series.Qdot.last_value"
+      Qdot_peak:
+        path: "tier_4.time_series.Qdot.peak_value"
+    confidence: MED
+    note: "Static-snapshot guard added; rule fires only when Tier 4 emits time_series_data"
+
+  - name: is_ignited
+    description: "Successful ignition: heat release sustained over time"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 2
+    required_paths:
+      - "tier_3.combustion.combustionModel"
+    criteria:
+      - name: high_heat_release
+        path: "tier_4.variable_ranges.Qdot.max"
+        op: ">"
+        threshold: 1.0e6              # opposite of extinction
+      - name: high_temperature_max
+        path: "tier_4.variable_ranges.T.max"
+        op: ">"
+        threshold: 800.0              # well above ambient
+      - name: oh_radical_present
+        path: "tier_4.variable_ranges.OH.max"
+        op: ">"
+        threshold: 1.0e-6
+        skip_if_missing: true
+    reference:
+      - "Westbrook 2000 *Combustion Modeling* Ch.9 (ignition criteria)"
+
+  - name: complete_combustion
+    description: "Fuel fully consumed everywhere in the domain — implies BOTH significant combustion product (CO2 produced) AND no remaining unburnt fuel pockets"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    # Semantics fix (2026-04-28): both criteria must hold. The previous
+    # voting_threshold=1 made the rule fire on 'any combustion present',
+    # which incorrectly returned True for diffusion flames (e.g.
+    # DLR_A_cavity) whose jet core has CH4_max ≈ inlet mass fraction. The
+    # rule's intent and description always called for FULL consumption.
+    voting_threshold: 2
+    required_paths:
+      - "tier_3.combustion.combustionModel"
+    criteria:
+      - name: high_co2
+        path: "tier_4.variable_ranges.CO2.max"
+        op: ">"
+        threshold: 0.05               # mass fraction; CH4-air stoich ~0.15
+        skip_if_missing: true
+      - name: low_fuel_residual
+        # CH4 specific; for kerosene/H2 add similar rules. Threshold 0.005
+        # means "peak fuel-mass fraction anywhere is below 0.5%" — a
+        # premixed / fully-mixed-and-burnt mixture; jet diffusion flames
+        # naturally fail this.
+        path: "tier_4.variable_ranges.CH4.max"
+        op: "<"
+        threshold: 0.005
+        skip_if_missing: true
+    reference:
+      - "Stoichiometry tables; emission index analysis"
+    validation_cases:
+      - sim-knowledge/labeled_cases/combustion_extinction/DLR_A_cavity_normal/  # diffusion flame: must be False
+
+  - name: max_heat_release_rate
+    description: "Peak volumetric heat release rate"
+    output_type: scalar
+    unit: "W/m^3"
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.Qdot.max"}
+
+  - name: max_OH_mass_fraction
+    description: "Peak OH radical mass fraction (flame indicator)"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.OH.max"}
+
+  - name: max_CO_mass_fraction
+    description: "Peak CO mass fraction (incomplete combustion / pollutant indicator)"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.CO.max"}
+
+  - name: max_CO2_mass_fraction
+    description: "Peak CO2 mass fraction (combustion product)"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.CO2.max"}

@@ -1,0 +1,163 @@
+# Abaqus — input deck (.inp) format identification + structure.
+# Source: sim-parse/docs/extraction_reference.md §9
+#
+# .odb (binary results) is closed format — sim-parse Path A covers .inp only.
+# .odb requires odb2vtk pre-conversion (Phase 4) or `abaqus python` subprocess.
+
+format: abaqus
+description: "Abaqus FEA — text input deck (.inp) is parseable; binary .odb requires Abaqus environment"
+
+identification:
+  variants:
+
+    - name: input_deck
+      type: text_keyword
+      signature:
+        first_keyword_pattern: '^\*HEADING'           # most decks start with *HEADING
+        common_keywords:
+          - "*PART"
+          - "*ASSEMBLY"
+          - "*MATERIAL"
+          - "*STEP"
+          - "*BOUNDARY"
+          - "*NODE"
+          - "*ELEMENT"
+      extensions: [".inp"]
+      confidence: HIGH
+
+    - name: result_binary
+      type: extension_only
+      extensions: [".odb"]
+      reader_status: "❌ no VTK reader; requires odb2vtk or abaqus python subprocess"
+      confidence: HIGH
+
+    - name: text_outputs
+      type: extension_only
+      extensions: [".dat", ".msg", ".sta"]
+      role: "Auxiliary text output (per-step summary, status, messages)"
+      confidence: MED
+
+reader_tool:
+  inp: "Custom keyword parser (sim-parse Phase 3 will add)"
+  odb: "odb2vtk (community, requires Abaqus install) OR `abaqus python -c '...'` subprocess"
+  dat_msg_sta: "Plain text + regex"
+
+structure_inp:
+  description: "Free-format text; lines starting with * are keywords"
+  conventions:
+    - "Keywords are case-insensitive but conventionally UPPERCASE"
+    - "Keyword lines: *KEYWORD, PARAM=VALUE, ..."
+    - "Data lines follow each keyword"
+    - "Comment lines start with **"
+    - "Continued lines: trailing comma at end of keyword line"
+
+  key_keywords:
+    "*HEADING":      "Free-text title"
+    "*PREPRINT":     "What to echo to .dat file"
+    "*PART":         "Begin part definition (until *END PART)"
+    "*ASSEMBLY":     "Top-level assembly of parts/instances"
+    "*INSTANCE":     "Part instance (with translation/rotation)"
+    "*NODE":         "Node coordinates: id, x, y, z"
+    "*ELEMENT":      "Element connectivity: id, n1, n2, ..."
+    "*ELSET":        "Named element set"
+    "*NSET":         "Named node set"
+    "*MATERIAL":     "Material definition (followed by *DENSITY, *ELASTIC, *PLASTIC, ...)"
+    "*SOLID SECTION": "Element section (assigns material to elset)"
+    "*SHELL SECTION":  "..."
+    "*BEAM SECTION":   "..."
+    "*STEP":         "Begin analysis step (until *END STEP)"
+    "*STATIC":       "Static analysis step type"
+    "*DYNAMIC":      "Dynamic analysis (implicit)"
+    "*DYNAMIC, EXPLICIT": "Explicit dynamics"
+    "*FREQUENCY":    "Modal analysis"
+    "*BUCKLE":       "Buckling analysis"
+    "*HEAT TRANSFER": "Thermal analysis"
+    "*BOUNDARY":     "Boundary conditions"
+    "*CLOAD":        "Concentrated load"
+    "*DLOAD":        "Distributed load"
+    "*CONTACT PAIR": "Contact definition"
+    "*TIE":          "Tie constraint"
+    "*OUTPUT":       "Output request (FIELD or HISTORY)"
+    "*INCLUDE":      "Include another .inp file (recursive)"
+
+quirks:
+  - id: include_recursion
+    description: "*INCLUDE chains can reference 10+ files recursively"
+    detect: "*INCLUDE keyword in .inp"
+    workaround: "Tier 3 parser must follow includes; track depth to avoid loops"
+    confidence: HIGH
+
+  - id: parameter_substitution
+    description: "*PARAMETER lets users define names that get substituted into data lines"
+    detect: "*PARAMETER keyword"
+    workaround: "Phase 3 parser may need to evaluate parameter expressions"
+    confidence: MED
+
+  - id: case_insensitive_keywords
+    description: "Abaqus accepts both *MAT_ELASTIC and *mat_elastic"
+    workaround: "Convert to uppercase before parsing keyword names"
+    confidence: HIGH
+
+  - id: node_element_ids_sparse
+    description: "Node and element IDs need not be contiguous; user can pick any"
+    detect: "id sequence in *NODE / *ELEMENT data lines is non-monotonic"
+    workaround: "Use dict keyed on id rather than list-by-position"
+    confidence: HIGH
+
+  - id: multi_step_analysis
+    description: "Multiple *STEP blocks = sequential analysis steps with different loads"
+    detect: "More than one *STEP / *END STEP pair"
+    workaround: "Each step has its own boundaries/loads; carry as list"
+    confidence: HIGH
+
+  - id: step_amplitude_curves
+    description: "*AMPLITUDE defines time-varying load curves used by *DLOAD/*CLOAD"
+    detect: "*AMPLITUDE keyword"
+    workaround: "Amp curves are reused across steps via name reference"
+    confidence: HIGH
+
+  - id: odb_closed_format
+    description: ".odb is binary closed format; only Abaqus's own odbAccess can read"
+    detect: "extension is .odb"
+    workaround: |
+      Three options for sim-parse:
+        1. odb2vtk pre-conversion (community, requires Abaqus install)
+        2. `abaqus python -c '...'` subprocess to extract via odbAccess
+        3. User exports .odb to .inp/CSV/VTU manually
+    affects: "Tier 4-6 cannot work without one of these"
+    confidence: HIGH
+
+  - id: legacy_fil_format
+    description: ".fil ASCII output is deprecated since Abaqus 6.13+"
+    detect: ".fil file present"
+    workaround: "Skip .fil; use .dat or odbAccess instead"
+    confidence: HIGH
+
+  - id: odb_version_compatibility
+    description: ".odb written by newer Abaqus may not open in older Abaqus"
+    detect: "abaqus python fails to open .odb"
+    workaround: "Match odb2vtk / Abaqus version to source case version"
+    confidence: HIGH
+
+extraction_what_we_can_do_from_inp:
+  tier_1_identify:
+    - "Format: abaqus_inp"
+    - "Has *PART / *ASSEMBLY / *STEP keywords"
+  tier_2_inventory:
+    - "Steps count"
+    - "Materials count"
+    - "Parts/instances count"
+  tier_3_metadata:
+    - "Analysis type (Static / Dynamic / Modal / Heat Transfer / ...)"
+    - "Material list (elastic / plastic / hyperelastic per material)"
+    - "Section assignments"
+    - "Boundary conditions per step"
+    - "Loads per step"
+    - "Contact pairs / ties"
+    - "Output requests"
+    - "Node count + element count + element types"
+
+extraction_what_we_cannot_do_without_odb:
+  - "Field stats (max stress / max displacement) — Tier 4+"
+  - "Step convergence histories — Tier 4"
+  - "VTU export — Tier 6"

@@ -1,0 +1,55 @@
+# HDF5 generic format identification.
+# Source: extraction_reference.md §6
+
+format: hdf5
+description: "HDF5 — generic hierarchical container; many CAE formats use it as backend"
+
+identification:
+  type: magic_bytes
+  signature:
+    offset: 0
+    bytes: "89 48 44 46 0D 0A 1A 0A"        # \x89HDF\r\n\x1a\n
+    ascii: "\\x89HDF\\r\\n\\x1a\\n"
+  confidence: HIGH
+  alt_extensions: [".h5", ".hdf5", ".hdf"]
+
+disambiguation:
+  description: "After confirming HDF5, sub-classify by group structure"
+  rules:
+    - if_has_group: "/CGNSBase_*"
+      then: cgns
+      confidence: HIGH
+    - if_has_root_attr: {key: "Solver", value: "Fluent"}
+      then: fluent_cff
+      confidence: HIGH
+    - if_has_group_pattern: "/Step#*/"
+      then: h5part
+      confidence: MED
+    - else: hdf5_generic
+      confidence: HIGH                     # confirmed HDF5, but no known sub-format
+
+generic_inventory_strategy:
+  description: "When sub-format unknown, emit a structural inventory"
+  steps:
+    - action: list_top_level_groups
+      tool: "h5py.File(path).keys()"
+    - action: dump_root_attributes
+      tool: "dict(f.attrs)"
+    - action: walk_tree
+      tool: "f.visititems()"
+      max_depth: 4
+    - action: identify_meshlike_groups
+      heuristic: |
+        Group containing both 'coordinates'/'points'/'vertices' AND
+        'connectivity'/'cells'/'elements' is likely a mesh definition.
+
+common_field_keywords:
+  velocity_3d:
+    patterns: [velocity, U, vel, Velocity]
+    detection: "shape == (N, 3) AND name contains keyword"
+  pressure:
+    patterns: [pressure, p, P, Pressure]
+  temperature:
+    patterns: [temperature, T, temp, Temperature]
+  density:
+    patterns: [density, rho, Density]

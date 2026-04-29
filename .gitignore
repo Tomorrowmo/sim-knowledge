@@ -1,0 +1,15 @@
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Python (in case any helper scripts get added later)
+__pycache__/
+*.pyc
+
+# Local testing scratch
+*.bak
+*.tmp

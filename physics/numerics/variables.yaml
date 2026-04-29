@@ -1,0 +1,48 @@
+# Numerics-domain canonical variable dictionary.
+
+domain: numerics
+
+variables:
+
+  residual_initial:
+    description: "Initial residual at start of an iteration step"
+    canonical_name: residual_initial
+    unit: "1"                         # dimensionless
+    aliases:
+      openfoam:
+        - "log: 'Solving for X, Initial residual = N'"
+
+  residual_final:
+    description: "Final residual at end of an iteration step"
+    canonical_name: residual_final
+    unit: "1"
+    aliases:
+      openfoam:
+        - "log: 'Final residual = N'"
+
+  convergence_orders:
+    description: "log10(initial_first / final_last) — residual drop in orders of magnitude"
+    canonical_name: convergence_orders
+    unit: "1"
+    typical_range: [0, 12]
+    physical_meaning: |
+      A drop of 3 means residual decreased by 1000×. Engineering convergence
+      typically requires ≥3 orders for steady-state RANS, ≥6 for design-grade.
+      LES doesn't drop as much (often ~1-2 orders).
+    aliases:
+      openfoam: "computed from log residual_history"
+      fluent:   "computed from .trn or report residuals"
+
+  courant_number:
+    description: "Courant–Friedrichs–Lewy number (transient stability)"
+    canonical_name: courant_max
+    unit: "1"
+    typical_range: [0, 100]
+    physical_meaning: |
+      C = U·dt/dx. Explicit solvers require C < 1; PIMPLE/PISO can run C > 1.
+      Very high C (>100) usually means numerical instability.
+    aliases:
+      openfoam:
+        - "log: 'Courant Number mean: X max: Y'"
+      fluent:
+        - "TUI report"

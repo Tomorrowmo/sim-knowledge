@@ -1,0 +1,54 @@
+# CGNS — CFD General Notation System.
+# Source: extraction_reference.md §5
+
+format: cgns
+description: "CGNS — CFD interchange standard; HDF5-backed since v3.0"
+
+identification:
+  type: magic_bytes_then_group_check
+  prerequisite:
+    description: "Must be HDF5 first"
+    signature: hdf5
+  signature:
+    must_have_group: "/CGNSBase_*"
+  confidence: HIGH
+  extensions: [".cgns", ".CGNS"]
+
+structure:
+  description: "Hierarchical: CGNSLibraryVersion → CGNSBase → Zone → ..."
+  nodes:
+    "/CGNSLibraryVersion": "CGNS standard version (3.x or 4.x)"
+    "/CGNSBase_<n>":       "Top-level base (e.g. one per analysis)"
+    "/CGNSBase_<n>/Zone_<m>": "Per-zone mesh + flow"
+    "/Zone_*/ZoneType":     "Structured / Unstructured"
+    "/Zone_*/GridCoordinates": "Node coordinates"
+    "/Zone_*/<elem_section>": "Element connectivity (unstructured)"
+    "/Zone_*/FlowSolution_*": "Field arrays (cell-centered or vertex)"
+    "/Zone_*/ZoneBC_*/BC_*": "Boundary conditions"
+
+reader_tool:
+  primary: "vtkmodules.vtkIOCGNSReader.vtkCGNSReader"
+  alternative: "h5py + cgnslib.py + custom traversal"
+
+quirks:
+  - id: cgns_v4_new_features
+    description: "v4.x adds Family BC indirection + Material support"
+    detect: "CGNSLibraryVersion >= 4.0"
+    workaround: "Resolve Family references when parsing BCs"
+  - id: structured_vs_unstructured
+    description: "Structured zones use IJK ranges, unstructured use element sections"
+    detect: "Zone/ZoneType attribute"
+    workaround: "Two different parsing paths"
+  - id: data_centering
+    description: "FlowSolution can be CellCenter or Vertex centered"
+    detect: "FlowSolution_*/GridLocation"
+    workaround: "Carry centering metadata; affects min/max statistics"
+
+variable_naming_convention:
+  description: "CGNS Standard Names; widely used canonical names"
+  examples:
+    - VelocityX, VelocityY, VelocityZ
+    - Pressure
+    - Density
+    - Temperature
+    - LiftCoefficient, DragCoefficient (under /CGNSBase_*/IntegralData)

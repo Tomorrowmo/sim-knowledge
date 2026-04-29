@@ -1,0 +1,117 @@
+# Combustion-domain canonical variable dictionary.
+#
+# Maps physical concepts → solver-native names + extraction sources.
+# Source: sim-parse/docs/extraction_reference.md §14.3 + criteria_reference.md §5
+
+domain: combustion
+
+variables:
+
+  volumetric_heat_release_rate:
+    description: "Volumetric heat release rate from chemical reactions"
+    canonical_name: Qdot
+    unit: W/m^3
+    typical_range: [0, 1.0e10]    # W/m^3, atmospheric to industrial
+    physical_meaning: |
+      Sum of d(rho * Y_i) / dt * h_i over all species, where h_i is enthalpy
+      of formation. Indicator of combustion intensity. Drops to ~0 when extinct.
+    aliases:
+      openfoam:
+        - Qdot
+        - heatRelease
+      fluent:
+        - heat-of-reaction
+        - reaction-progress
+      cantera:
+        - heat_release_rate
+
+  flame_radical_OH:
+    description: "OH radical mass fraction (flame existence indicator)"
+    canonical_name: Y_OH
+    unit: "1"
+    typical_range: [0, 0.005]      # mass fraction
+    physical_meaning: |
+      OH radical exists only inside reaction zones. Universal flame marker
+      across hydrocarbon/H2/alcohol fuels. Disappears almost completely
+      after extinction. Requires detailed mechanism (≥10 species, e.g. GRI).
+    aliases:
+      openfoam: ["OH", "Y_OH"]
+      fluent:   ["mf_oh", "mass-fraction-oh"]
+      cantera:  ["Y(OH)", "OH"]
+
+  flame_radical_CH:
+    description: "CH radical mass fraction (flame front marker, C-H fuels only)"
+    canonical_name: Y_CH
+    unit: "1"
+    typical_range: [0, 1.0e-6]     # ppm levels
+    physical_meaning: |
+      Trace radical, marks flame fronts in hydrocarbon flames. Used in
+      experimental chemiluminescence imaging. Not present in H2 flames.
+    aliases:
+      openfoam: ["CH", "Y_CH"]
+      fluent:   ["mf_ch"]
+
+  fuel_mass_fraction_CH4:
+    description: "Methane fuel mass fraction"
+    canonical_name: Y_CH4
+    unit: "1"
+    typical_range: [0, 1]
+    aliases:
+      openfoam: ["CH4", "Y_CH4"]
+      fluent:   ["mf_ch4"]
+
+  fuel_mass_fraction_H2:
+    description: "Hydrogen fuel mass fraction"
+    canonical_name: Y_H2
+    unit: "1"
+    typical_range: [0, 1]
+    aliases:
+      openfoam: ["H2", "Y_H2"]
+      fluent:   ["mf_h2"]
+
+  combustion_product_CO2:
+    description: "CO2 mass fraction (complete combustion product)"
+    canonical_name: Y_CO2
+    unit: "1"
+    typical_range: [0, 0.20]       # CH4-air stoich ~0.15
+    aliases:
+      openfoam: ["CO2", "Y_CO2"]
+      fluent:   ["mf_co2"]
+
+  combustion_intermediate_CO:
+    description: "CO mass fraction (incomplete combustion / pollutant)"
+    canonical_name: Y_CO
+    unit: "1"
+    typical_range: [0, 0.10]
+    physical_meaning: |
+      High CO ratios indicate incomplete combustion. Drives emission index.
+    aliases:
+      openfoam: ["CO", "Y_CO"]
+      fluent:   ["mf_co"]
+
+  water_vapor:
+    description: "H2O mass fraction (combustion product)"
+    canonical_name: Y_H2O
+    unit: "1"
+    typical_range: [0, 0.20]
+    aliases:
+      openfoam: ["H2O", "Y_H2O"]
+      fluent:   ["mf_h2o"]
+
+  inert_diluent_N2:
+    description: "N2 mass fraction (typically inert in air)"
+    canonical_name: Y_N2
+    unit: "1"
+    typical_range: [0, 1]
+    aliases:
+      openfoam: ["N2", "Y_N2"]
+      fluent:   ["mf_n2"]
+
+  oxygen:
+    description: "O2 mass fraction"
+    canonical_name: Y_O2
+    unit: "1"
+    typical_range: [0, 0.232]      # air mass frac of O2
+    aliases:
+      openfoam: ["O2", "Y_O2"]
+      fluent:   ["mf_o2"]

@@ -1,0 +1,88 @@
+# Per-fuel / per-pressure threshold tables for combustion judgments.
+#
+# When a criterion has multiple operating regimes, pick the threshold that
+# matches the case context. Fall back to `default` if no specific match.
+#
+# Source: criteria_reference.md §5 + experimental literature
+
+domain: combustion
+
+threshold_tables:
+
+  extinction_qdot_threshold:
+    description: "Heat release rate below which we judge extinction"
+    unit: W/m^3
+    default: 1.0e6
+    by_condition:
+      - if: {fuel: ["CH4", "methane"], pressure_atm: [0.5, 2]}
+        then: 1.0e6
+        rationale: "Methane-air stoichiometric flame at 1 atm has ~1e8-1e9 peak Qdot. 1e6 = ~0.1% threshold."
+
+      - if: {fuel: ["H2", "hydrogen"]}
+        then: 5.0e6
+        rationale: "H2 flames are more energetic; raise threshold proportionally."
+
+      - if: {fuel: ["kerosene", "C12H23", "C10H22"], pressure_atm: [10, 50]}
+        then: 1.0e7
+        rationale: "High-pressure kerosene combustors have higher absolute heat density."
+
+      - if: {fuel: ["propane", "C3H8"]}
+        then: 1.0e6
+
+  extinction_T_excess_threshold:
+    description: "Temperature rise above inlet below which we judge extinction"
+    unit: K
+    default: 100
+    by_condition:
+      - if: {fuel: ["CH4"], pressure_atm: [0.5, 2]}
+        then: 100
+      - if: {fuel: ["H2"]}
+        then: 150
+        rationale: "H2 flames are hotter; higher residual heat after extinction"
+
+  extinction_OH_threshold:
+    description: "OH mass fraction below which we judge no flame"
+    unit: "1"
+    default: 1.0e-6
+    by_condition:
+      - if: {chemistry_mechanism: ["GRI", "GRI-Mech 3.0", "USC-Mech II"]}
+        then: 1.0e-6
+        rationale: "Detailed mechanisms produce OH up to ~5e-3 inside flame zone."
+      - if: {chemistry_mechanism: ["1-step", "global", "BFER"]}
+        then: 0
+        rationale: "Reduced mechanisms may not include OH; criterion gets skipped"
+        skip: true
+
+  ignition_qdot_threshold:
+    description: "Heat release rate above which we judge ignition occurred"
+    unit: W/m^3
+    default: 1.0e6
+    by_condition:
+      - if: {fuel: ["CH4"]}
+        then: 1.0e6
+      - if: {fuel: ["H2"]}
+        then: 5.0e6
+
+  complete_combustion_co2_threshold:
+    description: "CO2 mass fraction indicating substantial combustion"
+    unit: "1"
+    default: 0.05
+    by_condition:
+      - if: {fuel: ["CH4"], regime: stoichiometric}
+        then: 0.10              # CH4-air stoich CO2 ~0.15
+      - if: {fuel: ["CH4"], regime: lean}
+        then: 0.05
+      - if: {fuel: ["H2"]}
+        then: 0
+        skip: true              # H2 doesn't produce CO2
+
+  flammable_equivalence_ratio_range:
+    description: "Equivalence ratio bounds for self-sustaining flame"
+    unit: "1"
+    by_fuel:
+      CH4:    [0.5, 1.6]
+      H2:     [0.1, 7.1]
+      C3H8:   [0.5, 2.5]
+      C2H2:   [0.4, 7.0]        # acetylene
+      kerosene_C12H23: [0.6, 4.0]
+    reference: "NIST flammability handbook; Glassman & Yetter 2014"

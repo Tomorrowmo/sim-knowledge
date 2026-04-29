@@ -1,0 +1,89 @@
+# Playbook for the Discovery Agent when given an unknown HDF5 file.
+#
+# When sim-parse Path A doesn't recognize the file but Path B identifies it
+# as HDF5, walk this playbook to extract maximum useful information.
+
+intent: "Inspect unknown HDF5 from a custom/private CAE solver"
+
+prerequisite:
+  - "File magic = HDF5"
+  - "Path A identification failed"
+
+steps:
+
+  1_signature_check:
+    description: "Confirm HDF5 magic bytes"
+    action: "Read first 8 bytes; verify b'\\x89HDF\\r\\n\\x1a\\n'"
+    on_fail: "Not HDF5; transfer to text-based fallback or report unknown_format"
+
+  2_disambiguation:
+    description: "Try to recognize a known HDF5 sub-format"
+    action: "Apply rules from sim-knowledge/formats/hdf5/structure.yaml::disambiguation"
+    rules:
+      - if_matches: cgns
+        then: "Use sim-parse cgns Path A"
+      - if_matches: fluent_cff
+        then: "Use sim-parse fluent (CFF reader) Path A"
+      - else: continue
+
+  3_attribute_mining:
+    description: "Look for solver name in HDF5 attributes"
+    action: |
+      with h5py.File(path) as f:
+          root_attrs = dict(f.attrs)
+          # Visit all groups and collect their attrs
+          all_attrs = {}
+          f.visititems(lambda name, obj: all_attrs.update({name: dict(obj.attrs)}))
+    look_for_keywords:
+      - "solver"
+      - "code_name"
+      - "creator"
+      - "software"
+      - "producer"
+    on_match: |
+      Hard-code the solver name in a new sim-knowledge/formats/<name>/structure.yaml.
+      Promote that case from playbook to first-class Path A.
+
+  4_structural_pattern_match:
+    description: "Look for mesh-like + field-like groups"
+    action: "Apply sim-knowledge/formats/hdf5/structure.yaml::generic_inventory_strategy"
+    output: "inventory dict with datasets[], groups[], root_attrs"
+    confidence: MED
+
+  5_llm_assisted_interpretation:
+    description: "Last resort — let LLM read the structure dump and guess"
+    when: "All above steps inconclusive"
+    action: |
+      Pass the inventory dict + sim-knowledge/formats/hdf5/structure.yaml
+      to LLM with prompt:
+        "Given this HDF5 tree dump, identify:
+         (a) probable solver/code that wrote it,
+         (b) which groups are mesh, which are fields, which are metadata,
+         (c) cite specific dataset paths as evidence."
+    confidence: LOW
+    constraints:
+      - "LLM must reference specific dataset paths in its reasoning"
+      - "If LLM is uncertain, return PENDING — don't guess"
+
+  6_self_check:
+    description: "Verify the LLM's interpretation makes sense"
+    action: |
+      For each LLM-claimed mesh group: check that 'coordinates'-like dataset
+      has shape (N, 3) and 'connectivity'-like dataset has shape (M, K).
+      Reject the interpretation if shapes don't match expected mesh structure.
+
+output:
+  shape:
+    format: hdf5
+    sub_format: <discovered or 'unknown'>
+    inventory:
+      datasets: [...]
+      groups: [...]
+      root_attrs: {...}
+    suggested_extractions: [...]            # what fields might be useful
+    confidence: HIGH/MED/LOW
+
+next_actions_for_human:
+  - "If a new solver was identified, add it to sim-knowledge/formats/<name>/"
+  - "If a mesh+fields layout was inferred but solver unknown, propose a Path B handler"
+  - "Add this case to sim-knowledge/labeled_cases/discovery_examples/"

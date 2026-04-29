@@ -1,0 +1,92 @@
+# Tecplot — file format identification + structure.
+# Source: sim-parse/docs/extraction_reference.md §11
+
+format: tecplot
+description: "Tecplot binary (.plt) and ASCII (.dat / .tec) — zone-based field data"
+
+identification:
+  variants:
+
+    - name: binary
+      type: magic_bytes
+      signature:
+        offset: 0
+        bytes: "23 21 54 44 56"            # "#!TDV"
+        ascii: "#!TDV"
+      version_capture:
+        regex: "#!TDV(\\d{2,3})"           # e.g. #!TDV112 → version 112
+      extensions: [".plt"]
+      confidence: HIGH
+
+    - name: ascii
+      type: text_keyword
+      signature:
+        first_keyword: "TITLE"
+        secondary_keywords: ["VARIABLES", "ZONE"]
+      extensions: [".dat", ".tec"]
+      confidence: MED                       # .dat is ambiguous (Fluent also uses)
+
+reader_tool:
+  binary: "vtkmodules.vtkIOGeometry.vtkTecplotReader"
+  ascii: "vtkmodules.vtkIOTecplotTable.vtkTecplotTableReader"
+
+structure:
+  description: "Zone-based: TITLE → VARIABLES list → one or more ZONE blocks"
+  versions_known: [75, 96, 101, 102, 107, 111, 112]
+  zone_types:
+    - ORDERED                                 # I, J, K structured indices
+    - FELINESEG                               # finite element line
+    - FETRIANGLE                              # FE triangle mesh
+    - FEQUADRILATERAL                         # FE quad
+    - FETETRAHEDRON                           # FE tet (3D)
+    - FEBRICK                                 # FE hex
+    - FEPOLYGON                               # FE general polygon
+    - FEPOLYHEDRON                            # FE general polyhedron
+
+  zone_layouts:
+    - BLOCK                                   # all values of var1 then all of var2 ...
+    - POINT                                   # interleaved (x1, y1, ...) then (x2, y2, ...)
+
+quirks:
+  - id: multiple_versions
+    description: "12+ versions of binary .plt; layout differs subtly between"
+    detect: "first 8 bytes: #!TDV<NN>"
+    workaround: |
+      vtkTecplotReader handles all major versions, but very old (<75)
+      or very new (post-2024) files may have edge cases.
+    confidence: HIGH
+
+  - id: variable_sharing
+    description: "Multi-zone files often share coordinates between zones to save space"
+    detect: "VarShareList in zone header"
+    affects: "When subsetting one zone, must ensure shared variables are loaded"
+    confidence: MED
+
+  - id: ambiguous_dat_extension
+    description: ".dat could be Tecplot ASCII OR Fluent .dat — disambiguate from content"
+    detect: "first non-comment line: 'TITLE' (Tecplot) vs binary header (Fluent)"
+    workaround: |
+      sim-parse Path A should peek first 64 bytes:
+        - starts with 'TITLE' or 'VARIABLES' → Tecplot ASCII
+        - is binary → likely Fluent .dat (paired with .cas)
+    confidence: HIGH
+
+  - id: multi_strand_transient
+    description: "Transient data uses StrandID; same zone reappears at different times"
+    detect: "Multiple zones with same name but different STRANDID/SOLUTIONTIME"
+    workaround: "Group by StrandID for time series; each StrandID is one zone evolving"
+    confidence: HIGH
+
+  - id: variable_centering
+    description: "Variables can be Node-centered or Cell-centered (per zone, per var)"
+    detect: "VARLOCATION = (...) clause in zone header"
+    affects: "Field statistics; cell-centered uses one fewer point in each direction"
+    confidence: HIGH
+
+variable_naming_convention:
+  description: "User-defined; Tecplot doesn't enforce names"
+  common_examples:
+    - "X, Y, Z"                           # coordinates
+    - "U, V, W"                           # velocity components
+    - "P, T, RHO"                         # pressure / temperature / density
+    - "VarName" / 'Variable Name'         # any user choice

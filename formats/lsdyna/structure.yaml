@@ -1,0 +1,64 @@
+# LS-DYNA — explicit/implicit dynamics result file format.
+# Source: extraction_reference.md §7
+
+format: lsdyna
+description: "LS-DYNA results — d3plot family + ASCII reports"
+
+identification:
+  type: filename_prefix_then_header
+  signature:
+    primary_file: "d3plot"                  # base file
+    distributed_pattern: "d3plot, d3plot01, d3plot02, ..."
+  confidence: HIGH
+
+input_files:
+  - .k                                     # keyword input
+  - .key
+  - .dyn
+
+result_files:
+  - d3plot                                 # main results (state-by-state)
+  - d3plot01, d3plot02, ...                # continuation (large cases split)
+  - d3thdt                                 # time-history (selected items)
+  - d3hsp                                  # solver textual log
+  - binout                                 # binary nodal/element history
+  - glstat                                 # ASCII global statistics
+  - matsum                                 # ASCII material summary
+  - nodout                                 # ASCII per-node history
+  - elout                                  # ASCII per-element history
+  - rcforc                                 # ASCII contact force history
+
+reader_tool:
+  primary: "vtkmodules.vtkIOLSDyna.vtkLSDynaReader"
+  note: "Auto-stitches d3plot + d3plot01 + ..."
+
+structure:
+  d3plot_format: "Custom binary, well-documented in LS-DYNA Theoretical Manual"
+  state_records:
+    - nodal: [displacement, velocity, acceleration]
+    - element: [stress_tensor, strain_tensor, internal_energy, plastic_strain]
+    - global: [time, energy_balance]
+
+quirks:
+  - id: distributed_d3plot
+    description: "Large cases split into d3plot01, d3plot02, ..."
+    detect: "d3plot01 exists alongside d3plot"
+    workaround: "vtkLSDynaReader handles automatically"
+
+  - id: large_deformation
+    description: "Bbox changes per time step due to large deformation"
+    workaround: "Compute bbox per state, not once at start"
+
+  - id: keyword_include_chain
+    description: "*INCLUDE in .k can chain dozens of files recursively"
+    detect: "*INCLUDE keyword in .k"
+    workaround: "Tier 3 metadata parser must follow includes"
+
+  - id: SDV_user_defined
+    description: "SDV1, SDV2, ... are user-defined state variables (no semantic meaning)"
+    detect: "field names start with SDV"
+    workaround: "Carry as opaque; user must label"
+
+  - id: MPP_vs_SMP
+    description: "MPP parallel version output format slightly differs from SMP"
+    workaround: "Reader handles both, but multi-processor MPP cases need reconstruction"

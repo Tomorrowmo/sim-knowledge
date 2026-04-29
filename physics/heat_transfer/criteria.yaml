@@ -1,0 +1,57 @@
+# Heat transfer criteria.
+# Source: sim-parse/docs/criteria_reference.md §4
+
+domain: heat_transfer
+
+intents:
+
+  - name: max_temperature
+    description: "Maximum temperature in domain"
+    output_type: scalar
+    unit: K
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.T.max"}
+
+  - name: min_temperature
+    description: "Minimum temperature in domain"
+    output_type: scalar
+    unit: K
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.T.min"}
+
+  - name: mean_temperature
+    description: "Mean temperature in domain"
+    output_type: scalar
+    unit: K
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.T.mean"}
+
+  - name: has_thermal_extreme
+    description: "Temperature exceeds material/physical bounds"
+    output_type: boolean
+    unit: boolean
+    type: voting
+    voting_threshold: 1
+    criteria:
+      - name: too_hot
+        path: "tier_4.variable_ranges.T.max"
+        op: ">"
+        threshold: 3000.0             # K, default; combustion adjusts
+      - name: too_cold
+        path: "tier_4.variable_ranges.T.min"
+        op: "<"
+        threshold: 0.0                # absolute zero is unphysical
+    reference:
+      - "Adiabatic flame temperatures (Glassman 2014)"
+      - "Material melting points (CRC Handbook)"
+    confidence_when_majority_match: HIGH
+    limitations:
+      - "Threshold needs case-specific adjustment by fuel + material"
+
+  - name: temperature_excess_above_ambient
+    description: "Max temperature minus ambient (heat plume indicator)"
+    output_type: scalar
+    unit: K
+    type: pluck                       # Phase 2: should be expression-based
+    source: {tier: 4, path: "variable_ranges.T.max"}
+    note: "Phase 2 — needs T_inlet from BC parsing for true excess"

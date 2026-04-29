@@ -1,0 +1,203 @@
+# OpenFOAM-specific quirks (corner cases / pitfalls discovered in practice).
+#
+# Source: sim-parse/docs/extraction_reference.md §3.4 (14 quirks)
+#
+# Each quirk includes:
+#   - description: what the quirk is
+#   - detect:     how to detect this case
+#   - affects:    which Tier / field is impacted
+#   - workaround: how the parser should handle it
+#   - confidence: how confident we are about this quirk
+
+format: openfoam
+quirks:
+
+  - id: parallel_log_location
+    description: "并行案例求解器主 log 在 processor*/，不在顶层"
+    detect:
+      - "any processor*/ directory exists"
+      - "log.<solver> not at top-level but exists in processor*/"
+    affects:
+      - tier: 2
+        field: log_files
+    workaround: |
+      Tier 2 inventory must scan both top-level and processor*/ for log.* files.
+    confidence: HIGH
+    references:
+      - "openfoam.com/documentation/runParallel"
+
+  - id: lts_pseudo_time
+    description: "LTS 求解器 endTime/deltaT 是迭代步数不是物理时间"
+    detect:
+      - "controlDict::application matches '*LTS'"
+      - "case_path contains 'LTS'"
+    affects:
+      - tier: 3
+        field: time_control.semantics
+      - tier: 7
+        field: time_semantics
+    workaround: |
+      Treat endTime as iteration count, not physical time. Tier 7 LLM /
+      heuristic should label time_semantics='pseudo_time_LTS'.
+    confidence: MED
+    examples:
+      - case_path: "tutorials/combustion/reactingFoam/RAS/DLR_A_LTS"
+        observed: {endTime: 5000, deltaT: 1}
+        actual_meaning: "5000 LTS iterations"
+
+  - id: setfields_initial_field
+    description: "0/<var> 是 nonuniform 表明 setFieldsDict 干预了初值（数值点火等）"
+    detect:
+      - "0/<var> internalField line starts with 'nonuniform'"
+      - "system/setFieldsDict exists"
+    affects:
+      - tier: 3
+        field: field_metadata
+    workaround: |
+      Flag this case as having setFields intervention. Often used for numerical
+      ignition (combustion) or hot spot initialization.
+    confidence: HIGH
+
+  - id: chemistry_important_species
+    description: "chemistryProperties::importantSpecies 不是完整物种列表"
+    detect:
+      - "constant/chemistryProperties contains 'importantSpecies'"
+      - "constant/reactions has many more species than importantSpecies list"
+    affects:
+      - tier: 3
+        field: chemistry
+    workaround: |
+      importantSpecies = subset for reduction algorithms (DAC etc.). Full
+      species list is in constant/reactions or chemkin/*.dat.
+    confidence: HIGH
+
+  - id: binary_format_byte_order
+    description: "format binary 配 arch 'LSB;label=32;scalar=64' 跨平台读时要注意字节序和精度"
+    detect:
+      - "field file FoamFile header has format=binary"
+      - "arch field present"
+    affects:
+      - tier: 4
+        field: variable_ranges
+    workaround: |
+      Use vtkOpenFOAMReader (handles byte order automatically) or PyFoam.
+      Hand-rolled binary readers must respect arch field.
+    confidence: HIGH
+
+  - id: gz_compression
+    description: "Old OpenFOAM defaults to .gz compression; new versions don't"
+    detect:
+      - "file ends in .gz"
+      - "writeCompression on/off in controlDict"
+    affects:
+      - tier: 2
+        field: variables
+      - tier: 4
+        field: variable_ranges
+    workaround: |
+      VTK reader handles .gz transparently. Manual parsers need gzip module.
+      Strip .gz from variable names when listing.
+    confidence: HIGH
+
+  - id: runtime_modifiable_controlDict
+    description: "runTimeModifiable=true 表示 controlDict 在跑过程中可被改动"
+    detect:
+      - "controlDict::runTimeModifiable = true"
+    affects:
+      - tier: 3
+        field: time_control
+    workaround: |
+      Tier 3 extracted values are final-write values, not initial. Original
+      values may differ; check log for any 'controlDict updated' messages.
+    confidence: HIGH
+
+  - id: multi_region_polymesh_location
+    description: "多 region 的 polyMesh 在 region 子目录里"
+    detect:
+      - "constant/<region>/polyMesh/ exists"
+      - "constant/polyMesh/ may not exist at root"
+    affects:
+      - tier: 1
+        field: layout
+      - tier: 3
+        field: mesh_*
+    workaround: |
+      For multi-region cases, iterate over all regions. Each region has its
+      own owner/points/boundary files.
+    confidence: HIGH
+
+  - id: foamfile_version_field_inconsistent
+    description: "FoamFile header 'version' 字段：v2212 vs 2212"
+    detect:
+      - "FoamFile banner has version with optional 'v' prefix"
+    affects:
+      - tier: 1
+        field: version
+    workaround: |
+      Regex must match both forms: `v?\d{2,4}(?:\.\d+)?`. Some Foundation
+      versions use just numeric (e.g. "2024"), ESI uses "v2406".
+    confidence: HIGH
+
+  - id: application_symlink
+    description: "controlDict::application 可能是符号链接"
+    detect: "rare; flagged when application name doesn't match known solvers"
+    affects:
+      - tier: 1
+        field: solver
+    workaround: "Resolve symlink if reading from disk path."
+    confidence: LOW
+
+  - id: vtk_boundary_field_warning
+    description: "vtkOpenFOAMReader 输出 stderr 警告 'boundaryField <patch> not found'"
+    detect:
+      - "vtkOpenFOAMReader.Update() produces WARN messages"
+    affects:
+      - tier: 4
+        field: variable_ranges
+    workaround: |
+      These warnings are benign — internalField extraction unaffected.
+      To suppress in production:
+        vtkmodules.vtkCommonCore.vtkOutputWindow.GetInstance().SetGlobalWarningDisplay(0)
+    confidence: HIGH
+
+  - id: blockmesh_extra_patches
+    description: "polyMesh/boundary 比 blockMeshDict::boundary 多 1-2 项"
+    detect: "patch count mismatch between blockMeshDict and polyMesh/boundary"
+    affects:
+      - tier: 3
+        field: boundaries
+    workaround: |
+      blockMesh adds defaultFaces / internal patches. Implementation should
+      use polyMesh/boundary as source of truth, not blockMeshDict.
+    examples:
+      - case: DLR_A_cavity
+        blockMeshDict_count: 9
+        polyMesh_boundary_count: 10
+    confidence: HIGH
+
+  - id: endTime_int_vs_float
+    description: "controlDict::endTime 通常是 int (e.g. 5000;) 而非 float (5000.0;)"
+    detect:
+      - "controlDict::endTime parses as int"
+    affects:
+      - tier: 3
+        field: time_control
+    workaround: |
+      Downstream comparisons must accept both int and float. Use loose
+      equality or coerce both sides to float before comparing.
+    confidence: HIGH
+
+  - id: lts_is_completed_ambiguous
+    description: "is_completed 判据对 LTS 求解器有歧义"
+    detect:
+      - "lts_pseudo_time quirk active"
+      - "latest_time >= endTime"
+    affects:
+      - tier: 3
+        field: is_completed
+      - tier: 7
+        field: run_health
+    workaround: |
+      For LTS, is_completed=True means "iterations finished", not
+      "physical time elapsed". Tier 7 should distinguish these semantics.
+    confidence: HIGH

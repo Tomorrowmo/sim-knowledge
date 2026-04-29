@@ -1,0 +1,175 @@
+# Numerics judgment criteria — universal across solvers.
+#
+# Source: sim-parse/docs/criteria_reference.md §6
+# Reference: Patankar 1980, Versteeg & Malalasekera 2007, Roache 1998
+
+domain: numerics
+domain_description: "Numerical health: convergence, divergence, conservation, stability"
+
+intents:
+
+  - name: is_diverged
+    description: "Numerical divergence: residual explosion / unphysical values / NaN"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 1               # any one criterion is enough
+    criteria:
+      - name: residual_explosion
+        path: "tier_4.convergence_orders.U"
+        op: "<"
+        threshold: -2                 # residual increased by > 2 orders
+        skip_if_missing: true
+      - name: temperature_unphysical
+        path: "tier_4.variable_ranges.T.max"
+        op: ">"
+        threshold: 1.0e8
+        skip_if_missing: true
+      - name: pressure_unphysical
+        path: "tier_4.variable_ranges.p.max"
+        op: ">"
+        threshold: 1.0e15
+        skip_if_missing: true
+      - name: velocity_unphysical
+        path: "tier_4.variable_ranges.U.magnitude_max"
+        op: ">"
+        threshold: 1.0e6              # > 1000 km/s, almost certainly NaN noise
+        skip_if_missing: true
+    reference:
+      - "Roache 1998 V&V"
+      - "OpenFOAM FATAL ERROR catalog"
+    confidence_when_majority_match: HIGH
+
+  - name: is_steady_state_converged
+    description: "Steady-state algorithm has fully converged"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 2
+    criteria:
+      - name: U_residual_dropped
+        path: "tier_4.convergence_orders.Ux"
+        op: ">="
+        threshold: 3.0
+        skip_if_missing: true
+      - name: p_residual_dropped
+        path: "tier_4.convergence_orders.p"
+        op: ">="
+        threshold: 3.0
+        skip_if_missing: true
+      - name: continuity_residual_dropped
+        path: "tier_4.convergence_orders.h"
+        op: ">="
+        threshold: 3.0
+        skip_if_missing: true
+    reference:
+      - "Patankar 1980 §6.4 SIMPLE algorithm"
+      - "Versteeg & Malalasekera 2007 §11"
+    confidence_when_all_match: HIGH
+    limitations:
+      - "LES/DES residuals don't drop much; criterion is misleading there"
+
+  - name: convergence_orders_max
+    description: "Best-converged variable's residual drop (orders of magnitude)"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: {tier: 4, path: "convergence_orders.Ux"}
+
+  - name: mass_continuity_violated
+    description: "Continuity equation residual abnormally high"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 1
+    criteria:
+      - name: continuity_residual_high
+        path: "tier_4.convergence_orders.h"
+        op: "<"
+        threshold: 1.0                # less than 1 order of drop
+        skip_if_missing: true
+    reference:
+      - "Patankar 1980 §6.7 SIMPLE pressure correction"
+
+  # Roll-up signals from Tier 4's convergence_summary. Sim-parse already
+  # emits a structured per-variable status (converged/marginal/diverged) and
+  # a top-level warning; these QOIs make the same info available to
+  # rule-based / report-style consumers without re-implementing the
+  # threshold logic.
+
+  - name: n_diverged_variables
+    description: "Number of state variables whose residual INCREASED during the run"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: {tier: 4, path: "convergence_summary.n_diverged"}
+
+  - name: diverged_variables_list
+    description: "Names of variables flagged as diverged (convergence_order < 0)"
+    output_type: list
+    unit: ""
+    type: pluck
+    source: {tier: 4, path: "convergence_summary.diverged_vars"}
+
+  - name: n_marginal_variables
+    description: "Variables that dropped fewer than 3 orders of magnitude"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: {tier: 4, path: "convergence_summary.n_marginal"}
+
+  - name: convergence_health
+    description: "Boolean health flag: True iff zero variables diverged"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 1
+    criteria:
+      - name: zero_divergence
+        path: "tier_4.convergence_summary.n_diverged"
+        op: "=="
+        threshold: 0
+        skip_if_missing: true
+
+  - name: nan_in_field
+    description: |
+      True iff at least one variable's stats contain a non-finite value
+      (NaN / +Inf / -Inf). A simple pluck of Tier 4's measured boolean —
+      the actual scan happens at Tier 4 where field arrays are read.
+    output_type: boolean
+    unit: "boolean"
+    type: pluck
+    source: {tier: 4, path: "has_nan_field"}
+
+  - name: nan_field_list
+    description: "Names of variables containing NaN/Inf values (empty if healthy)"
+    output_type: list
+    unit: ""
+    type: pluck
+    source: {tier: 4, path: "nan_fields"}
+
+  - name: excessive_courant
+    description: |
+      Maximum Courant number exceeded a stability-relevant threshold.
+      Threshold is conservative for adjustable-time-step PIMPLE / LES;
+      tighter threshold (1.0) applies to explicit / PISO.
+      Skipped silently if Courant number isn't tracked (e.g. LTS / steady-state runs).
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 1
+    criteria:
+      - name: courant_max_too_high
+        path: "tier_4.variable_ranges.CourantNumber.max"
+        op: ">"
+        threshold: 5.0
+        skip_if_missing: true
+    reference:
+      - "Courant-Friedrichs-Lewy condition; OpenFOAM User Guide §A.4"
+
+  - name: max_courant_number
+    description: "Peak Courant number observed in the domain"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.CourantNumber.max"}

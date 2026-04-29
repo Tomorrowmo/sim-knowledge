@@ -1,0 +1,50 @@
+domain: heat_transfer
+
+variables:
+
+  temperature:
+    description: "Static temperature"
+    canonical_name: T
+    unit: K
+    typical_range: [0, 5000]
+    aliases:
+      openfoam: ["T"]
+      fluent:   ["temperature", "static-temperature"]
+      cgns:     ["Temperature"]
+      abaqus:   ["NT11", "NT"]
+      mapdl:    ["TEMP"]
+
+  thermal_diffusivity:
+    description: "Thermal diffusivity (k / (rho * Cp))"
+    canonical_name: alpha_th
+    unit: m^2/s
+    aliases:
+      openfoam: ["alphat", "alpha"]
+      fluent:   ["thermal-diffusivity"]
+
+  thermal_conductivity:
+    description: "Thermal conductivity"
+    canonical_name: kappa_th
+    unit: W/(m*K)
+    aliases:
+      openfoam: ["kappa", "kappaEff"]
+      fluent:   ["thermal-conductivity"]
+
+  enthalpy:
+    description: "Sensible enthalpy"
+    canonical_name: hs
+    unit: J/kg
+    aliases:
+      openfoam: ["h", "hs", "ha"]
+      fluent:   ["enthalpy"]
+
+  cross_solver_qoi_mappings:
+    wall_heat_flux_total:
+      description: "Total heat flux through walls"
+      unit: W
+      sources:
+        openfoam:
+          - file: "postProcessing/wallHeatFlux*/<time>/wallHeatFlux.dat"
+            note: "needs functionObject"
+        fluent:
+          - file: "report-heat-flux.out"

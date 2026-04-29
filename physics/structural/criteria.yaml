@@ -1,0 +1,52 @@
+# Structural mechanics criteria.
+# Source: sim-parse/docs/criteria_reference.md §7
+
+domain: structural
+
+intents:
+
+  - name: max_von_mises_stress
+    description: "Peak von Mises stress in domain"
+    output_type: scalar
+    unit: Pa
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.S_VonMises.max"}
+    note: "Field name is solver-dependent; abaqus has S.MISES, lsdyna has stress.vonMises"
+
+  - name: max_displacement
+    description: "Peak displacement magnitude"
+    output_type: scalar
+    unit: m
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.U.magnitude_max"}
+
+  - name: max_stress_exceeds_yield
+    description: "Max von Mises stress exceeds yield strength"
+    output_type: boolean
+    unit: boolean
+    type: voting
+    voting_threshold: 1
+    criteria:
+      - name: stress_above_yield
+        path: "tier_4.variable_ranges.S_VonMises.max"
+        op: ">"
+        threshold: 250.0e6              # Pa; mild steel yield
+        skip_if_missing: true
+    reference:
+      - "Beer et al. 2014 *Mechanics of Materials* Ch.7"
+    limitations:
+      - "Yield strength must be set per material; default is mild steel"
+      - "For brittle materials use max principal stress instead"
+
+  - name: max_stress_unphysical
+    description: "Stress > 1 TPa indicates numerical noise"
+    output_type: boolean
+    unit: boolean
+    type: voting
+    voting_threshold: 1
+    criteria:
+      - name: stress_unphysical
+        path: "tier_4.variable_ranges.S_VonMises.max"
+        op: ">"
+        threshold: 1.0e12
+        skip_if_missing: true

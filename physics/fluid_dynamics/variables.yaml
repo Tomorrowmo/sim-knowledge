@@ -1,0 +1,117 @@
+# Fluid dynamics canonical variable dictionary.
+# Source: sim-parse/docs/extraction_reference.md §14.1
+
+domain: fluid_dynamics
+
+variables:
+
+  velocity:
+    description: "Velocity vector"
+    canonical_name: U
+    unit: m/s
+    typical_range: [0, 1000]
+    aliases:
+      openfoam: ["U"]
+      fluent:   ["velocity", "x-velocity", "y-velocity", "z-velocity"]
+      cgns:     ["VelocityX", "VelocityY", "VelocityZ", "VelocityVector"]
+      starccm:  ["Velocity[i]", "Velocity[j]", "Velocity[k]"]
+
+  pressure_static:
+    description: "Static pressure (gauge or absolute depends on solver)"
+    canonical_name: p
+    unit: Pa
+    typical_range: [0, 1.0e7]
+    physical_meaning: |
+      OpenFOAM `p` is kinematic pressure (p/rho) for incompressible solvers,
+      absolute pressure for compressible. Fluent default is gauge pressure
+      (relative to operating pressure).
+    aliases:
+      openfoam: ["p"]
+      fluent:   ["pressure", "static-pressure"]
+      cgns:     ["Pressure"]
+
+  density:
+    description: "Mass density"
+    canonical_name: rho
+    unit: kg/m^3
+    typical_range: [0.01, 10000]
+    aliases:
+      openfoam: ["rho"]
+      fluent:   ["density"]
+      cgns:     ["Density"]
+
+  mach_number:
+    description: "Local Mach number"
+    canonical_name: Ma
+    unit: "1"
+    typical_range: [0, 30]
+    aliases:
+      openfoam: ["Ma", "MachNumber"]
+      fluent:   ["mach-number"]
+      cgns:     ["MachNumber"]
+
+  turbulent_kinetic_energy:
+    description: "Turbulent kinetic energy"
+    canonical_name: k
+    unit: m^2/s^2
+    aliases:
+      openfoam: ["k"]
+      fluent:   ["turb-kinetic-energy"]
+
+  turbulent_dissipation:
+    description: "Turbulent dissipation rate"
+    canonical_name: epsilon
+    unit: m^2/s^3
+    aliases:
+      openfoam: ["epsilon"]
+      fluent:   ["turb-diss-rate"]
+
+  turbulent_specific_dissipation:
+    description: "Specific dissipation rate (k-omega)"
+    canonical_name: omega
+    unit: 1/s
+    aliases:
+      openfoam: ["omega"]
+      fluent:   ["specific-diss-rate"]
+
+  turbulent_viscosity:
+    description: "Turbulent (eddy) viscosity"
+    canonical_name: nut
+    unit: m^2/s
+    aliases:
+      openfoam: ["nut"]
+      fluent:   ["turbulent-viscosity"]
+
+  cross_solver_qoi_mappings:
+    lift_coefficient:
+      unit: "1"
+      sources:
+        openfoam:
+          - file: "postProcessing/forces*/<time>/forceCoeffs.dat"
+            column: "Cl"
+            aggregator: last
+        fluent:
+          - file: "report-cl*.out"
+            column: "lift"
+            aggregator: last
+        cgns:
+          - path: "/CGNSBase_*/IntegralData/LiftCoeff"
+    drag_coefficient:
+      unit: "1"
+      sources:
+        openfoam:
+          - file: "postProcessing/forces*/<time>/forceCoeffs.dat"
+            column: "Cd"
+            aggregator: last
+    pressure_drop:
+      unit: Pa
+      sources:
+        openfoam:
+          - expression: "inlet.p_mean - outlet.p_mean"
+            note: "Phase 2 — needs patch-averaging"
+    mass_flow_rate:
+      unit: kg/s
+      sources:
+        openfoam:
+          - file: "postProcessing/massFlow*/<time>/mass-flow.dat"
+            note: "depends on functionObject configuration"

@@ -1,0 +1,127 @@
+# Fluid dynamics criteria.
+# Source: sim-parse/docs/criteria_reference.md §3
+
+domain: fluid_dynamics
+
+intents:
+
+  - name: max_velocity_magnitude
+    description: "Maximum velocity magnitude in domain"
+    output_type: scalar
+    unit: m/s
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.U.magnitude_max"}
+
+  - name: mean_velocity_magnitude
+    description: "Mean velocity magnitude in domain"
+    output_type: scalar
+    unit: m/s
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.U.magnitude_mean"}
+
+  - name: max_pressure
+    description: "Maximum static pressure"
+    output_type: scalar
+    unit: Pa
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.p.max"}
+
+  - name: min_pressure
+    description: "Minimum static pressure (cavitation indicator)"
+    output_type: scalar
+    unit: Pa
+    type: pluck
+    source: {tier: 4, path: "variable_ranges.p.min"}
+
+  - name: mach_regime
+    description: "Compressibility regime classification"
+    output_type: enum
+    unit: categorical
+    enum_values: [incompressible, subsonic, transonic, supersonic, hypersonic]
+    type: pluck                       # post-processed; just plucks already-classified field
+    source: {tier: 7, path: "physics_class.value"}
+    note: "Phase 2 — should be a categorical_threshold rule based on Ma_max"
+
+  - name: high_speed_regime_alarm
+    description: "Velocity exceeds 100 m/s (potential compressibility issue)"
+    output_type: boolean
+    unit: boolean
+    type: voting
+    voting_threshold: 1
+    criteria:
+      - name: high_velocity
+        path: "tier_4.variable_ranges.U.magnitude_max"
+        op: ">"
+        threshold: 100.0
+    reference: "Anderson 2001 *Modern Compressible Flow*"
+
+  # ─── Force coefficients (from report_qoi normalized output) ───────────────
+  - name: lift_coefficient_last
+    description: "Lift coefficient at last reported iteration"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: {tier: 4, path: "report_qoi.lift_coefficient.last_value"}
+
+  - name: drag_coefficient_last
+    description: "Drag coefficient at last reported iteration"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: {tier: 4, path: "report_qoi.drag_coefficient.last_value"}
+
+  - name: lift_coefficient_max
+    description: "Maximum lift coefficient over iterations"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: {tier: 4, path: "report_qoi.lift_coefficient.max_value"}
+
+  - name: drag_coefficient_max
+    description: "Maximum drag coefficient over iterations"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: {tier: 4, path: "report_qoi.drag_coefficient.max_value"}
+
+  - name: force_x_last
+    description: "X-force at last iteration"
+    output_type: scalar
+    unit: N
+    type: pluck
+    source: {tier: 4, path: "report_qoi.force_x.last_value"}
+
+  - name: force_y_last
+    description: "Y-force at last iteration"
+    output_type: scalar
+    unit: N
+    type: pluck
+    source: {tier: 4, path: "report_qoi.force_y.last_value"}
+
+  - name: force_z_last
+    description: "Z-force at last iteration"
+    output_type: scalar
+    unit: N
+    type: pluck
+    source: {tier: 4, path: "report_qoi.force_z.last_value"}
+
+  - name: moment_x_last
+    description: "X-moment at last iteration"
+    output_type: scalar
+    unit: "N*m"
+    type: pluck
+    source: {tier: 4, path: "report_qoi.moment_x.last_value"}
+
+  - name: moment_y_last
+    description: "Y-moment at last iteration"
+    output_type: scalar
+    unit: "N*m"
+    type: pluck
+    source: {tier: 4, path: "report_qoi.moment_y.last_value"}
+
+  - name: moment_z_last
+    description: "Z-moment at last iteration"
+    output_type: scalar
+    unit: "N*m"
+    type: pluck
+    source: {tier: 4, path: "report_qoi.moment_z.last_value"}

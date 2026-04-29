@@ -1,0 +1,89 @@
+# OpenFOAM case identification + structure rules.
+# Source: sim-parse/docs/extraction_reference.md §3.1
+
+format: openfoam
+description: "OpenFOAM CFD framework — directory-based, multi-file format"
+
+identification:
+  type: directory_structure       # not single-file; needs directory check
+  signature:
+    must_exist:
+      - "system/controlDict"
+      - "constant/"
+    must_be_directory:
+      - "system"
+      - "constant"
+  confidence: HIGH
+
+solver_detection:
+  source: "system/controlDict"
+  field: "application"            # OpenFOAM dictionary key
+  examples:
+    - reactingFoam
+    - sprayFoam
+    - simpleFoam
+    - pisoFoam
+    - pimpleFoam
+    - chtMultiRegionFoam
+    - rhoSimpleFoam
+    - rhoPimpleFoam
+    - interFoam
+    - icoFoam
+
+version_detection:
+  source: "FoamFile banner of any dictionary file"
+  pattern: 'Version:\s+(v?\d{2,4}(?:\.\d+)?)'
+  examples:
+    - v2206
+    - v2212
+    - v2406
+    - "2024"
+
+layout_variants:
+  - name: single-region
+    detect: "constant/polyMesh/ exists"
+  - name: multi-region
+    detect: "constant/<region>/polyMesh/ exists for any region"
+  - name: parallel
+    detect: "processor*/ directories at top level"
+
+time_directory_naming:
+  rule: "top-level directories whose names parse as float"
+  examples:
+    - "0"          # int
+    - "0.0239"     # float
+    - "5000"       # int (often LTS pseudo-time)
+  exclude:
+    - "0.orig"     # initial condition template
+    - "0_orig"
+    - "initial"
+
+dict_files_in_system:
+  - controlDict
+  - fvSchemes
+  - fvSolution
+  - decomposeParDict
+  - blockMeshDict
+  - snappyHexMeshDict
+  - topoSetDict
+  - setFieldsDict
+  - fvOptions
+
+dict_files_in_constant:
+  - turbulenceProperties
+  - thermophysicalProperties
+  - chemistryProperties
+  - combustionProperties
+  - sprayCloudProperties
+  - g
+  - polyMesh/owner
+  - polyMesh/points
+  - polyMesh/faces
+  - polyMesh/boundary
+  - polyMesh/neighbour
+
+aux_directories:
+  - chemkin/                       # chemkin mechanism files
+  - constant/triSurface/           # CAD geometry
+  - constant/geometry/
+  - postProcessing/                # functionObject outputs

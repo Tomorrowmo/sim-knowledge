@@ -1,0 +1,56 @@
+# Template for new labeled_case ground_truth.yaml files.
+# Copy this to <intent>/<case_id>/ground_truth.yaml and fill in.
+# Schema authority: ./_schema.yaml (v1)
+
+case_id: REPLACE_ME                                # unique short ID, ASCII
+case_path: D:/path/to/case                         # absolute path or relative to sim-knowledge
+
+labels:
+  # Fill in expected verdicts for any intents this case supports.
+  # Leave out intents that aren't applicable.
+
+  # Combustion (only if combustion model present)
+  is_extinguished: false                           # true | false
+  is_ignited: true
+  complete_combustion: false
+
+  # Numerics (universal)
+  is_diverged: false
+  is_steady_state_converged: true
+  excessive_courant: false
+
+  # Fluid dynamics
+  mach_regime: subsonic                            # incompressible/subsonic/transonic/supersonic/hypersonic
+
+  # Heat
+  has_thermal_extreme: false
+
+  # Structural (CSM cases only)
+  max_stress_exceeds_yield: false
+
+context:
+  # Physical context — used to pick the right threshold table
+  fuel: CH4                                        # CH4 / H2 / kerosene / N/A
+  pressure_atm: 1.0
+  solver: reactingFoam
+  combustion_model: EDC                            # EDC / PaSR / laminar / N/A
+  chemistry_mechanism: GRI-Mech 3.0
+  turbulence_model: kEpsilon
+  geometry_class: axisymmetric_wedge               # 2d / 3d / axisymmetric_wedge / cyclic / ...
+  time_semantics: pseudo_time_LTS                  # physical_time / pseudo_time_LTS / iteration / N/A
+
+labeled_by: REPLACE_ME                             # your name or 'auto'
+labeled_at: 2026-01-01                             # ISO date
+
+evidence:
+  # Optional: pull these from sim-parse Tier 4 output to pin down the values
+  T_max: 0
+  Qdot_max: 0
+  OH_max: 0
+  mesh_cells: 0
+
+notes: |
+  Free text. Why this case got these labels, what's interesting, edge cases.
+
+references:
+  - "Paper / tutorial / experiment ID"

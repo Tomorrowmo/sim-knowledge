@@ -1,0 +1,60 @@
+domain: structural
+
+variables:
+
+  von_mises_stress:
+    description: "Von Mises equivalent stress (yield criterion)"
+    canonical_name: S_VonMises
+    unit: Pa
+    typical_range: [0, 1.0e10]
+    aliases:
+      lsdyna:   ["stress.vonMises", "EFFSTR"]
+      abaqus:   ["S.MISES", "S:Mises"]
+      mapdl:    ["SEQV"]
+      calculix: ["VONMISES"]
+
+  displacement:
+    description: "Nodal displacement vector"
+    canonical_name: U_disp
+    unit: m
+    aliases:
+      lsdyna:   ["displacement"]
+      abaqus:   ["U", "U.U1", "U.U2", "U.U3"]
+      mapdl:    ["UX", "UY", "UZ"]
+
+  velocity:
+    description: "Nodal velocity (transient analysis)"
+    canonical_name: V_node
+    unit: m/s
+    aliases:
+      lsdyna: ["velocity"]
+      abaqus: ["V"]
+
+  stress_principal_max:
+    description: "Maximum principal stress (brittle yield criterion)"
+    canonical_name: S_max_principal
+    unit: Pa
+    aliases:
+      lsdyna: ["stress.maxprincipal"]
+      abaqus: ["S.MAX_PRINCIPAL", "S:Max.Principal"]
+      mapdl:  ["S1"]
+
+  strain_equivalent:
+    description: "Equivalent (von Mises) strain"
+    canonical_name: E_eq
+    unit: "1"
+    aliases:
+      lsdyna: ["effective_plastic_strain", "EPS"]
+      abaqus: ["PEEQ", "E.MISES"]
+
+  cross_solver_qoi_mappings:
+    total_kinetic_energy:
+      unit: J
+      sources:
+        lsdyna: [{file: "glstat", column: "KE"}]
+        abaqus: [{file: "*.dat", keyword: "ALLKE"}]
+    mode_frequencies:
+      unit: Hz
+      sources:
+        abaqus: [{file: "*.dat", section: "modal"}]
+        mapdl:  [{file: "*.rst", api: "PyDPF"}]

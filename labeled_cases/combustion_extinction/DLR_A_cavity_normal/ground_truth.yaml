@@ -1,0 +1,83 @@
+# Ground truth labels for DLR_A_cavity (DLR-A standard methane-hydrogen jet flame).
+#
+# Schema: ../../_schema.yaml (v1)
+# Reference: OpenFOAM tutorial combustion/reactingFoam/RAS/DLR_A_LTS
+
+case_id: DLR_A_cavity_normal
+case_path: D:/Git/SimGraph2/test_data/DLR_A_combustion/DLR_A_cavity
+
+labels:
+  # Combustion intents (criteria_reference §5)
+  is_extinguished: false
+  is_ignited: true
+  complete_combustion: false           # CH4 still present at outlet (jet flame, not perfectly mixed)
+
+  # Numerics intents (criteria_reference §6)
+  is_diverged: false
+  excessive_courant: false
+  nan_in_field: false
+  mass_continuity_violated: false
+
+  # Run state
+  is_completed: true                   # latest_time = 5000 = endTime
+
+  # Run state — convergence is ambiguous because LTS pseudo-time
+  # We label with confidence and let the judge handle uncertainty
+  is_steady_state_converged: true      # residuals dropped 6-8 orders, stable
+
+context:
+  fuel: CH4                            # primary fuel (with H2 blend in DLR-A)
+  fuel_secondary: H2
+  pressure_atm: 1.0                    # atmospheric
+  solver: reactingFoam
+  combustion_model: EDC
+  chemistry_mechanism: GRI-Mech 3.0    # constant/reactionsGRI + thermo.compressibleGasGRI
+  turbulence_model: kEpsilon
+  geometry_class: axisymmetric_wedge   # blockMeshDict has wedge BCs front/back
+  time_semantics: pseudo_time_LTS      # endTime=5000, deltaT=1 are LTS iterations not seconds
+
+labeled_by: claude-code
+labeled_at: 2026-04-27
+
+evidence:
+  # Tier 4 signals from sim-parse v0.1 actual run on this case
+  T_max: 1998.45
+  T_min: 291.89
+  T_inlet: 292
+  T_excess_at_last_step: 1706
+  Qdot_max: 7.69e8                     # > 1e6 threshold by 2.5 orders
+  OH_max: 0.0031                       # > 1e-6 threshold
+  CH4_max: 0.246                       # fuel inlet mass fraction
+  CO_max: 0.0344                       # combustion intermediate
+  CO2_max: 0.0875                      # complete combustion product
+  H2O_max: 0.145                       # complete combustion product
+  U_magnitude_max: 43.6                # ~ inletfuel BC value 42.2 m/s
+  mesh_cells: 3466
+  bounding_box_z_extent: 1.02          # m, jet flame propagation
+
+  # Convergence orders (from log residual parsing)
+  convergence_orders_strong: ["Ux", "Uy", "Uz", "p", "k", "epsilon", "T", "CH4", "CO2", "H2O"]
+  convergence_orders_weak: ["CH", "C2H5"]   # trace species, near machine precision
+
+notes: |
+  Standard DLR-A flame benchmark, well-converged.
+
+  This is a positive (negative-extinction) reference case for the
+  is_extinguished judgment: vigorous combustion with peak heat release
+  ~770 MW/m³, peak temperature ~2000K (250+K above adiabatic flame
+  temperature for CH4 lean is ~2000K, normal for diffusion flame),
+  OH radical present at 0.3% mass fraction — flame is unmistakable.
+
+  All 3 voting criteria from criteria_reference.md §5.3.1 evaluate to
+  "not extinguished":
+    - Qdot.last.max = 7.69e8 >> threshold 1.0e6 (off by 2-3 orders)
+    - T.last.max - T_inlet = 1706 K >> threshold 100 K
+    - OH.last.max = 3.1e-3 >> threshold 1e-6
+
+  Time semantics quirk: deltaT=1 endTime=5000 is LTS iteration count,
+  NOT seconds (path contains "DLR_A_LTS"). Tier 7 LLM should
+  recognize this; for now we label time_semantics in context.
+
+references:
+  - "OpenFOAM tutorial: tutorials/combustion/reactingFoam/RAS/DLR_A_LTS"
+  - "DLR-A flame: Bergmann et al. 1998, Combust. Sci. Technol. 140"
