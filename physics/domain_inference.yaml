@@ -1,0 +1,138 @@
+# Domain inference clue table — meta-routing layer.
+#
+# Purpose: given a parsed case's surface signals (solver application name +
+# present field names + boundary patch types), suggest which physics
+# domain(s) to consult next. Cheaper-than-Tier-5 routing for LLM agents
+# and downstream tools that must decide "do I need to load combustion
+# rules or heat_transfer rules for this case?".
+#
+# This is NOT a hard judgment — multiple clues may match a single case
+# (e.g. a reactingFoam case is BOTH combustion AND fluid_dynamics).
+# Consumers should treat the output as a ranked list of candidate domains
+# to explore, not a unique label.
+#
+# Source: synthesized from PostDrive's OpenfoamAnalysis.skill.md clue table
+# + sim-knowledge/physics canonical variable lists.
+#
+# Schema (clue table):
+#   - id            : unique slug (kebab-case)
+#   - domain        : which physics/<dir> to consult on match
+#   - confidence    : strong / moderate / weak — how reliable the inference is
+#   - description   : one-line human summary
+#   - if_any_field  : presence of ANY listed field name → match
+#   - if_all_fields : presence of ALL listed field names → match
+#   - if_no_fields  : absence of ALL listed field names → match (used for
+#                     negative gates like "no T" → not heat transfer)
+#   - if_application_substring : solver app name contains this substring
+#   - if_patch_type : any boundary patch has one of these types
+#
+# Field name matching: case-insensitive, checks against the union of
+# Tier 2 `variables` and Tier 3 boundary patch type lists.
+
+domain: meta_routing
+domain_description: "Meta-routing — pick which physics domain to dig into"
+
+clues:
+
+  - id: aerodynamics-pure
+    domain: fluid_dynamics
+    confidence: moderate
+    description: "Pressure + velocity present, no temperature → likely pure aerodynamics / incompressible flow"
+    if_all_fields: ["p", "U"]      # OpenFOAM names; aliases handled below
+    if_no_fields:  ["T", "h"]
+    aliases_matched_against:
+      p: ["p", "pressure", "Pressure", "P"]
+      U: ["U", "velocity", "Velocity", "V"]
+      T: ["T", "temperature", "Temperature"]
+      h: ["h", "enthalpy"]
+
+  - id: heat-transfer
+    domain: heat_transfer
+    confidence: strong
+    description: "Temperature field present → heat transfer is in the model"
+    if_any_field: ["T", "temperature", "Temperature", "h", "enthalpy"]
+
+  - id: compressible-coupled
+    domain: fluid_dynamics
+    confidence: strong
+    description: "p + T + U all present → compressible flow / thermo-fluid coupling"
+    if_all_fields: ["p", "T", "U"]
+
+  - id: combustion-by-species
+    domain: combustion
+    confidence: strong
+    description: "Reactive species fields present (CH4 / O2 / CO2 / Y_*) → combustion / chemical reactions"
+    if_any_field:
+      - CH4
+      - O2
+      - CO2
+      - CO
+      - H2
+      - H2O
+      - OH
+      - Qdot
+      - Ydefault
+      # Y_ prefix would need glob match — current schema is exact.
+      # Consumers should also do `any(name.startswith("Y_") for name in fields)`.
+
+  - id: combustion-by-application
+    domain: combustion
+    confidence: strong
+    description: "Solver name contains 'reacting' / 'combustion' / 'fire' → combustion solver"
+    if_application_substring: ["reacting", "combustion", "fire", "spray"]
+
+  - id: multiphase
+    domain: fluid_dynamics       # multiphase is an aspect of fluid_dynamics today
+    confidence: strong
+    description: "Phase-fraction field present → multiphase flow (VOF / Eulerian)"
+    if_any_field:
+      - alpha
+      - alpha.water
+      - alpha.air
+      - alpha.gas
+      - alpha.liquid
+
+  - id: natural-convection-by-application
+    domain: heat_transfer
+    confidence: moderate
+    description: "Solver name contains 'buoyant' → buoyancy-driven flow / natural convection"
+    if_application_substring: ["buoyant"]
+
+  - id: turbulence-required
+    domain: fluid_dynamics
+    confidence: moderate
+    description: "Turbulent-kinetic-energy field present → turbulent flow"
+    if_any_field: ["k", "epsilon", "omega", "nut", "nuTilda", "R"]
+
+  - id: structural-fea
+    domain: structural
+    confidence: strong
+    description: "Stress / displacement / strain fields → structural FEA"
+    if_any_field:
+      - sigma
+      - stress
+      - displacement
+      - U_struct
+      - strain
+      - vonMises
+
+# How consumers should use this:
+#
+# 1. Collect from parse_case result:
+#       solver_app = result["tier_3_metadata"].get("application", "").lower()
+#       fields = set((result["tier_2_inventory"].get("variables") or []))
+#
+# 2. For each clue, evaluate the if_* conditions. ALL specified conditions
+#    in a single clue must match. Empty / absent conditions are treated as
+#    "always true" (so a clue with only if_any_field doesn't require anything
+#    else).
+#
+# 3. Collect matched domains. Rank by:
+#    - confidence: strong > moderate > weak
+#    - then by number of clues that fired for that domain
+#
+# 4. Surface to LLM as: "candidate domains to consult: [combustion (strong,
+#    2 clues), fluid_dynamics (strong, 1 clue), heat_transfer (moderate, 1)]".
+#
+# This routing is intentionally lightweight — it just narrows the search
+# space. Hard physics judgments still come from physics/<domain>/criteria.yaml.
