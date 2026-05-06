@@ -20,6 +20,7 @@ CAE **物理判据 + 格式探索**的结构化知识库，是 sim-* 生态中"*
 sim-knowledge/
 ├── README.md                                              ← 本文档
 ├── physics/                                               ← "判"
+│   ├── domain_inference.yaml      ← meta-routing: case 信号 → 候选 domain（sim-parse Tier 7 candidate_domains 消费）
 │   ├── combustion/
 │   │   ├── criteria.yaml          (7 intents)
 │   │   ├── variables.yaml         (10 canonical vars + cross-solver aliases)

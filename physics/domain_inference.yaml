@@ -28,6 +28,21 @@
 #
 # Field name matching: case-insensitive, checks against the union of
 # Tier 2 `variables` and Tier 3 boundary patch type lists.
+#
+# ⚠️ TODO (cross-solver gap): the field names below are OpenFOAM-style
+# ("p", "U", "CH4"). The evaluator does .lower() but does NOT expand
+# cross-solver aliases. Fluent fields like "PRESSURE" / "X_VELOCITY"
+# lower to "pressure" / "x_velocity" — they will NOT match the "p" / "U"
+# clues here. The `aliases_matched_against` blocks below are documentation
+# only; not yet consumed by sim-parse's discovery/semantic.py evaluator.
+#
+# Fix path: either (a) implement alias expansion in _add_candidate_domains
+# using physics/<domain>/variables.yaml::aliases, or (b) replace clue
+# field names with canonical names from variables.yaml and translate
+# parse_result fields → canonical at evaluation time.
+#
+# Until fixed, candidate_domains works correctly on OpenFOAM cases but
+# returns sparse / no matches on Fluent / CGNS cases.
 
 domain: meta_routing
 domain_description: "Meta-routing — pick which physics domain to dig into"

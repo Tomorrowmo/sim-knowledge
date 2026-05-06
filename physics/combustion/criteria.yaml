@@ -8,6 +8,16 @@
 # rules. sim-parse used to embed a copy in core/canonical/qoi_rules.yaml.
 # Eventually sim-parse will load this file directly when sim-knowledge is
 # installed alongside.
+#
+# ⚠️ TODO (path migration): the `required_paths` and `inputs.path` fields
+# below reference legacy flat paths like `tier_3.combustion.combustionModel`
+# and `tier_3.bc.T_inlet`. sim-parse v0.2 added a structured
+# `tier_3.physics_setup.combustion.*` container alongside (double-write)
+# while keeping the legacy flat paths for backward compat. Migrate paths
+# in this file to `tier_3.physics_setup.combustion.*` after sim-parse
+# tags a release that locks in the double-write contract — at that point
+# sim-parse can drop the legacy flat fields. Coordinate with sim-parse
+# release notes; until then the legacy paths still work.
 
 domain: combustion
 domain_description: "Combustion physics — extinction / ignition / completeness"
