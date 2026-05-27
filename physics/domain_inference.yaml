@@ -50,7 +50,7 @@ domain_description: "Meta-routing — pick which physics domain to dig into"
 clues:
 
   - id: aerodynamics-pure
-    domain: fluid_dynamics
+    domain: aerodynamics
     confidence: moderate
     description: "Pressure + velocity present, no temperature → likely pure aerodynamics / incompressible flow"
     if_all_fields: ["p", "U"]      # OpenFOAM names; aliases handled below
@@ -68,7 +68,7 @@ clues:
     if_any_field: ["T", "temperature", "Temperature", "h", "enthalpy"]
 
   - id: compressible-coupled
-    domain: fluid_dynamics
+    domain: compressible_flow
     confidence: strong
     description: "p + T + U all present → compressible flow / thermo-fluid coupling"
     if_all_fields: ["p", "T", "U"]
@@ -97,7 +97,7 @@ clues:
     if_application_substring: ["reacting", "combustion", "fire", "spray"]
 
   - id: multiphase
-    domain: fluid_dynamics       # multiphase is an aspect of fluid_dynamics today
+    domain: multiphase
     confidence: strong
     description: "Phase-fraction field present → multiphase flow (VOF / Eulerian)"
     if_any_field:
@@ -108,9 +108,9 @@ clues:
       - alpha.liquid
 
   - id: natural-convection-by-application
-    domain: heat_transfer
+    domain: aerothermal
     confidence: moderate
-    description: "Solver name contains 'buoyant' → buoyancy-driven flow / natural convection"
+    description: "Solver name contains 'buoyant' → buoyancy-driven flow (aerothermal coupling)"
     if_application_substring: ["buoyant"]
 
   - id: turbulence-required
@@ -130,6 +130,66 @@ clues:
       - U_struct
       - strain
       - vonMises
+
+  # ── aerodynamics 细化 ─────────────────────────────────────────
+  - id: aerodynamics-forces
+    domain: aerodynamics
+    confidence: strong
+    description: "forceCoeffs 函数对象输出 → 外流气动后处理"
+    if_any_field: ["forceCoeffs", "Cl", "Cd", "Cm"]
+    # ⚠️ evaluator gap: 除了 tier_2.variables，还需扫 tier_2.post_processing
+    # 列表才能命中 forceCoeffs 函数对象。当前 sim-parse 只匹配 variables。
+
+  # ── aerothermal 细化 ─────────────────────────────────────────
+  - id: aerothermal-cht
+    domain: aerothermal
+    confidence: strong
+    description: "多区域共轭传热 solver"
+    if_application_substring: ["chtMultiRegion", "conjugateHeatFoam"]
+
+  - id: aerothermal-wall-heat-flux
+    domain: aerothermal
+    confidence: moderate
+    description: "壁面热流 BC → 气动热"
+    if_patch_type: ["fixedHeatFlux", "wallHeatTransfer", "externalWallHeatFluxTemperature"]
+    # ⚠️ evaluator gap: if_patch_type 当前未被 sim-parse 消费。
+    # 需在 discovery/semantic.py 内加上对 tier_3 boundaries[].type 的迭代。
+
+  # ── internal_flow ─────────────────────────────────────────────
+  - id: internal-flow-by-topology
+    domain: internal_flow
+    confidence: strong
+    description: "存在 inlet+outlet patch 且无外流远场 → 内流"
+    if_patch_type: ["patch"]
+    # ⚠️ evaluator gap: 完整语义需 evaluator 扩展 —— patch 名 in {inlet,outlet}
+    # 且无 freestream/farfield。当前 schema 不支持复合条件，先用 patch type
+    # = 'patch' 作粗筛，evaluator 后续可加 if_patch_name_any / if_patch_name_none。
+
+  - id: internal-flow-mrf
+    domain: internal_flow
+    confidence: strong
+    description: "MRF / 旋转参考系 → 涡轮机械内流"
+    if_application_substring: ["MRFSimpleFoam", "MRFPimpleFoam", "rotorDisk"]
+
+  # ── multibody ────────────────────────────────────────────────
+  - id: multibody-by-application
+    domain: multibody
+    confidence: strong
+    description: "多体动力学 solver"
+    if_application_substring: ["sixDoF", "rigidBody", "LSDYNA-explicit-contact"]
+
+  # ── acoustics ────────────────────────────────────────────────
+  - id: acoustics-by-application
+    domain: acoustics
+    confidence: strong
+    description: "声学 solver / FW-H 函数对象"
+    if_application_substring: ["acoustic", "FWH", "Curle"]
+
+  - id: acoustics-by-variable
+    domain: acoustics
+    confidence: strong
+    description: "声压场存在"
+    if_any_field: ["p_acoustic", "p_a", "SPL", "soundPressureLevel"]
 
 # How consumers should use this:
 #
