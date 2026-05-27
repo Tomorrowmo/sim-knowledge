@@ -1,6 +1,6 @@
 # sim-knowledge
 
-> **状态**：v0.2 — 物理判据 + 格式知识 首批完整化
+> **状态**：v0.3 — 物理判据扩到 12 域（新增 aerodynamics / compressible_flow / aerothermal / internal_flow / multiphase / multibody / acoustics，2026-05-21）
 > **架构**：见 [sim-parse/docs/design.md §2 三轴架构](../sim-parse/docs/design.md)
 
 CAE **物理判据 + 格式探索**的结构化知识库，是 sim-* 生态中"**判**"和"**读**"两个动作的载体。
@@ -14,13 +14,13 @@ CAE **物理判据 + 格式探索**的结构化知识库，是 sim-* 生态中"*
 | 判 (judge) | **`sim-knowledge/physics/`** ✅ | 物理判据 / 变量字典 / 阈值表 |
 |  + | **`sim-knowledge/labeled_cases/`** ⚠️ 1/50 | 标注真值（机制 #2 校准检验依据） |
 
-## 当前内容（v0.2）
+## 当前内容（v0.3）
 
 ```
 sim-knowledge/
 ├── README.md                                              ← 本文档
 ├── physics/                                               ← "判"
-│   ├── domain_inference.yaml      ← meta-routing: case 信号 → 候选 domain（sim-parse Tier 7 candidate_domains 消费）
+│   ├── domain_inference.yaml      ← meta-routing: case 信号 → 候选 domain（12 域，17 条 clue）
 │   ├── combustion/
 │   │   ├── criteria.yaml          (7 intents)
 │   │   ├── variables.yaml         (10 canonical vars + cross-solver aliases)
@@ -34,9 +34,30 @@ sim-knowledge/
 │   ├── heat_transfer/
 │   │   ├── criteria.yaml          (4 intents)
 │   │   └── variables.yaml         (4 vars + wall_heat_flux QOI)
-│   └── structural/
-│       ├── criteria.yaml          (4 intents)
-│       └── variables.yaml         (5 vars: stress/displacement/strain/...)
+│   ├── structural/
+│   │   ├── criteria.yaml          (4 intents)
+│   │   └── variables.yaml         (5 vars: stress/displacement/strain/...)
+│   ├── aerodynamics/              ★ 2026-05-21 新增
+│   │   ├── criteria.yaml          (6 intents: Cl/Cd/Cm 末值, L/D, stall, Cp_min)
+│   │   └── variables.yaml         (6 vars + 5 QOI mappings)
+│   ├── compressible_flow/         ★ 新增
+│   │   ├── criteria.yaml          (5 intents: Ma 分档, shock_present, p0 recovery)
+│   │   └── variables.yaml         (6 vars: Ma_inf/T0/p0/gamma/... + QOI)
+│   ├── aerothermal/               ★ 新增
+│   │   ├── criteria.yaml          (7 intents: T_wall, q_wall, overheated, CHT)
+│   │   └── variables.yaml         (5 vars + 2 QOI: wall_heat_flux_max, Nu_avg)
+│   ├── internal_flow/             ★ 新增
+│   │   ├── criteria.yaml          (6 intents: mass balance, p0 loss, swirl)
+│   │   └── variables.yaml         (6 vars: mdot/p0/swirl/rpm + QOI)
+│   ├── multiphase/                ★ 新增（从 fluid_dynamics 拆出）
+│   │   ├── criteria.yaml          (4 intents: phase_count, interface_area, d32, is_lagrangian)
+│   │   └── variables.yaml         (4 vars: alpha/sigma_st/d32/Np)
+│   ├── multibody/                 ★ 新增
+│   │   ├── criteria.yaml          (6 intents: n_bodies/n_joints/F_contact_max/...)
+│   │   └── variables.yaml         (4 vars: pose/joint_angle/F_contact/v_rel)
+│   └── acoustics/                 ★ 新增
+│       ├── criteria.yaml          (5 intents: OASPL_max, f_dominant, n_observers, sound_power)
+│       └── variables.yaml         (4 vars: p_acoustic/SPL/x_obs/f)
 ├── formats/                                               ← "读"
 │   ├── openfoam/
 │   │   ├── structure.yaml         (识别签名 + solver 列表 + 目录约定)
@@ -60,11 +81,11 @@ sim-knowledge/
             └── ground_truth.yaml                           ← 1 个真值（待补 4-9 个）
 ```
 
-**统计**：
+**统计（v0.3）**：
 
-- **physics/**：5 个域、25 个 intent、40+ canonical 变量定义、阈值表 5 张
-- **formats/**：5 种格式（openfoam/hdf5/cgns/fluent/lsdyna）+ 跨格式 conventions + 1 个 playbook
-- **labeled_cases/**：1 个真值标注 + 1 套 schema + 模板
+- **physics/**：12 个域（5 个原有 + 7 个新增）、74 个 intent（25 → 74）、80+ canonical 变量定义、阈值表 5 张、domain_inference 17 条 clue
+- **formats/**：8 种格式（openfoam/hdf5/cgns/fluent/lsdyna/plot3d/tecplot/abaqus）+ 跨格式 conventions + 1 个 playbook
+- **labeled_cases/**：1 个真值标注 + 1 套 schema + 模板（新 7 域待补 1-2 个/域）
 
 ## sim-parse 自动消费
 
