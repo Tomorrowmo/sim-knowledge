@@ -1,0 +1,61 @@
+# Acoustics canonical variable dictionary.
+# Source: simgraph-new 解析与入库设计 §5.4.J
+
+domain: acoustics
+
+variables:
+
+  acoustic_pressure:
+    description: "声压（与平均流场压力的扰动）"
+    canonical_name: p_acoustic
+    unit: Pa
+    typical_range: [-1.0e4, 1.0e4]
+    physical_meaning: |
+      p_acoustic = p - p_mean。声学计算（FW-H、Curle、LEE）的核心场量。
+    aliases:
+      openfoam: ["p_acoustic", "p_a", "pAcoustic"]
+      fluent:   ["acoustic-pressure"]
+
+  sound_pressure_level:
+    description: "声压级 SPL = 20*log10(p_rms / p_ref)"
+    canonical_name: SPL
+    unit: dB
+    typical_range: [0.0, 200.0]
+    physical_meaning: |
+      参考声压 p_ref = 20 µPa（空气）/ 1 µPa（水）。
+      日常声 30-90 dB；喷气发动机近场 ~150 dB。
+    aliases:
+      openfoam: ["SPL", "soundPressureLevel"]
+      fluent:   ["spl", "sound-pressure-level"]
+
+  observer_location:
+    description: "FW-H 观测点位置"
+    canonical_name: x_obs
+    unit: m
+
+  frequency:
+    description: "频率（频谱分析）"
+    canonical_name: f
+    unit: Hz
+
+  cross_solver_qoi_mappings:
+
+    oaspl_max_dB:
+      unit: dB
+      sources:
+        openfoam:
+          - file: "postProcessing/FWH*/<time>/OASPL.dat"
+            column: "OASPL"
+            aggregator: max
+        fluent:
+          - file: "report-spl*.out"
+            column: "OASPL"
+            aggregator: max
+
+    f_dominant_Hz:
+      unit: Hz
+      sources:
+        openfoam:
+          - file: "postProcessing/spectrum*/<time>/peak.dat"
+            column: "freq"
+            aggregator: max

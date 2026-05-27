@@ -1,0 +1,66 @@
+# Aerodynamics judgment criteria.
+# Source: simgraph-new 解析与入库设计 §5.4.A
+
+domain: aerodynamics
+domain_description: "外流气动 — Cl/Cd/Cm 末值, 失速判定, 升阻比"
+
+intents:
+
+  - name: lift_coefficient_last
+    description: "升力系数末值"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 5, path: "qoi.lift_coefficient.value" }
+
+  - name: drag_coefficient_last
+    description: "阻力系数末值"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 5, path: "qoi.drag_coefficient.value" }
+
+  - name: pitching_moment_last
+    description: "俯仰力矩系数末值"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 5, path: "qoi.pitching_moment_coefficient.value" }
+
+  - name: lift_to_drag_ratio
+    description: "升阻比 L/D"
+    output_type: scalar
+    unit: "1"
+    type: expression
+    expression: "Cl / Cd"
+    inputs:
+      Cl: { path: "tier_5.qoi.lift_coefficient.value" }
+      Cd: { path: "tier_5.qoi.drag_coefficient.value" }
+    confidence: HIGH
+
+  - name: is_stalled
+    description: "失速判定：Cl 时序曲线最高点之后下降 ≥ 15%"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 1
+    temporal_requirement: time_series
+    required_paths:
+      - "tier_4.time_series.Cl"
+    criteria:
+      - name: cl_drop_from_peak
+        expression: "(Cl_peak - Cl_last) / Cl_peak"
+        inputs:
+          Cl_peak: { path: "tier_4.time_series.Cl.peak_value" }
+          Cl_last: { path: "tier_4.time_series.Cl.last_value" }
+        op: ">"
+        threshold: 0.15
+    reference:
+      - "Anderson 2011 *Fundamentals of Aerodynamics* §4.10"
+
+  - name: cp_min
+    description: "物面最小 Cp（吸力峰）"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 4, path: "variable_ranges.Cp.min" }

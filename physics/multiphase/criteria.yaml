@@ -1,0 +1,42 @@
+# Multiphase flow judgment criteria.
+# Source: simgraph-new 解析与入库设计 §5.4.G
+
+domain: multiphase
+domain_description: "多相流 — VOF / Euler-Euler / Lagrangian；相数、界面、液滴尺度"
+
+intents:
+
+  - name: phase_count
+    description: "相数（扫 alpha.<phase> 字段数量）"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 5, path: "qoi.phase_count.value" }
+
+  - name: interface_area_m2
+    description: "界面面积（|∇α| 体积积分）"
+    output_type: scalar
+    unit: m^2
+    type: pluck
+    source: { tier: 5, path: "qoi.interface_area.value" }
+
+  - name: mean_droplet_diameter_m
+    description: "Sauter 平均液滴直径 d32"
+    output_type: scalar
+    unit: m
+    type: pluck
+    source: { tier: 5, path: "qoi.mean_droplet_diameter.value" }
+
+  - name: is_lagrangian
+    description: "是否启用拉格朗日相"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 1
+    required_paths: []
+    criteria:
+      - name: lagrangian_dir_present
+        path: "tier_2_inventory.has_lagrangian"
+        op: "=="
+        threshold: true
+        skip_if_missing: true

@@ -1,0 +1,68 @@
+# Internal flow judgment criteria.
+# Source: simgraph-new 解析与入库设计 §5.4.F
+
+domain: internal_flow
+domain_description: "内流 — 涡轮机械 / 管道 / 燃烧室进气；质量流量平衡、总压损失"
+
+intents:
+
+  - name: mass_flow_in_kgs
+    description: "进口质量流量"
+    output_type: scalar
+    unit: kg/s
+    type: pluck
+    source: { tier: 5, path: "qoi.mass_flow_inlet.value" }
+
+  - name: mass_flow_out_kgs
+    description: "出口质量流量"
+    output_type: scalar
+    unit: kg/s
+    type: pluck
+    source: { tier: 5, path: "qoi.mass_flow_outlet.value" }
+
+  - name: mass_imbalance_pct
+    description: "质量不平衡 (mdot_in - mdot_out) / mdot_in"
+    output_type: scalar
+    unit: "%"
+    type: expression
+    expression: "(mdot_in - mdot_out) / mdot_in * 100"
+    inputs:
+      mdot_in:  { path: "tier_5.qoi.mass_flow_inlet.value" }
+      mdot_out: { path: "tier_5.qoi.mass_flow_outlet.value" }
+    confidence: HIGH
+
+  - name: is_mass_conserved
+    description: "质量守恒判定：|imbalance| < 1%"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 1
+    required_paths:
+      - "tier_5.qoi.mass_flow_inlet.value"
+      - "tier_5.qoi.mass_flow_outlet.value"
+    criteria:
+      - name: imbalance_small
+        expression: "abs((mdot_in - mdot_out) / mdot_in * 100)"
+        inputs:
+          mdot_in:  { path: "tier_5.qoi.mass_flow_inlet.value" }
+          mdot_out: { path: "tier_5.qoi.mass_flow_outlet.value" }
+        op: "<"
+        threshold: 1.0
+
+  - name: total_pressure_loss_Pa
+    description: "进出口总压损失 p0_in - p0_out"
+    output_type: scalar
+    unit: Pa
+    type: expression
+    expression: "p0_in - p0_out"
+    inputs:
+      p0_in:  { path: "tier_5.qoi.p0_inlet.value" }
+      p0_out: { path: "tier_5.qoi.p0_outlet.value" }
+    confidence: HIGH
+
+  - name: swirl_number
+    description: "旋流数 S"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 5, path: "qoi.swirl_number.value" }

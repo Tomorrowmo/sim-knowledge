@@ -1,0 +1,66 @@
+# Multiphase flow canonical variable dictionary.
+# Source: simgraph-new 解析与入库设计 §5.4.G
+#
+# Split off from fluid_dynamics — alpha / VOF / Lagrangian particle metrics
+# belong here, not in the generic fluid_dynamics package.
+
+domain: multiphase
+
+variables:
+
+  phase_fraction:
+    description: "相分数 α（VOF / Euler-Euler 主相场）"
+    canonical_name: alpha
+    unit: "1"
+    typical_range: [0.0, 1.0]
+    physical_meaning: |
+      0 = 全在另一相，1 = 全在该相，0~1 之间为界面。
+      OpenFOAM 命名形如 alpha.water / alpha.air；Fluent 用 vof / volume-fraction。
+    aliases:
+      openfoam: ["alpha", "alpha.water", "alpha.air", "alpha.gas", "alpha.liquid"]
+      fluent:   ["vof", "volume-fraction"]
+
+  surface_tension:
+    description: "表面张力系数"
+    canonical_name: sigma_st
+    unit: N/m
+    typical_range: [1.0e-3, 1.0]
+    aliases:
+      openfoam: ["sigma", "sigmaSt"]
+
+  droplet_diameter:
+    description: "液滴直径（Sauter 平均 d32）"
+    canonical_name: d32
+    unit: m
+    typical_range: [1.0e-6, 1.0e-2]
+    physical_meaning: |
+      Sauter 平均直径 = 6V/A（总体积/总表面积），喷雾后处理常用指标。
+
+  n_particles:
+    description: "拉格朗日粒子总数"
+    canonical_name: Np
+    unit: "1"
+
+  cross_solver_qoi_mappings:
+
+    phase_count:
+      unit: "1"
+      sources:
+        openfoam:
+          - expression: "count(tier_2.variables matching 'alpha\\..*')"
+            note: "扫 tier_2 variables 里 alpha.<phase> 的数量"
+
+    interface_area_m2:
+      unit: m^2
+      sources:
+        openfoam:
+          - expression: "integral(|grad(alpha)|)"
+            note: "通常需 functionObject 后处理；这里只声明语义"
+
+    mean_droplet_diameter_m:
+      unit: m
+      sources:
+        openfoam:
+          - file: "postProcessing/lagrangian*/cloudInfo.dat"
+            column: "d32"
+            aggregator: last

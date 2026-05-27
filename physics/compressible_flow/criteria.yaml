@@ -1,0 +1,75 @@
+# Compressible flow judgment criteria.
+# Source: simgraph-new 解析与入库设计 §5.4.B
+
+domain: compressible_flow
+domain_description: "可压缩流 — 马赫数分档, 激波存在判定, 总压恢复"
+
+intents:
+
+  - name: mach_max
+    description: "全场最大马赫数"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 4, path: "variable_ranges.Ma.max" }
+
+  - name: mach_mean
+    description: "全场平均马赫数"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 4, path: "variable_ranges.Ma.mean" }
+
+  - name: flow_regime
+    description: "流动分档：subsonic/transonic/supersonic/hypersonic"
+    output_type: scalar
+    unit: "string"
+    type: expression
+    expression: |
+      "hypersonic" if Ma_max >= 5 else
+      "supersonic" if Ma_max >= 1.2 else
+      "transonic"  if Ma_max >= 0.8 else
+      "subsonic"   if Ma_max >= 0.3 else
+      "incompressible"
+    inputs:
+      Ma_max: { path: "tier_4.variable_ranges.Ma.max" }
+    confidence: HIGH
+    reference:
+      - "Anderson 2017 *Modern Compressible Flow* §1.3"
+
+  - name: shock_present
+    description: "激波存在判定：Ma_max > 1.0 且压力比 > 2"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 2
+    required_paths:
+      - "tier_4.variable_ranges.Ma.max"
+      - "tier_4.variable_ranges.p.max"
+      - "tier_4.variable_ranges.p.min"
+    criteria:
+      - name: ma_supersonic
+        path: "tier_4.variable_ranges.Ma.max"
+        op: ">"
+        threshold: 1.0
+
+      - name: large_pressure_ratio
+        expression: "p_max / p_min"
+        inputs:
+          p_max: { path: "tier_4.variable_ranges.p.max" }
+          p_min: { path: "tier_4.variable_ranges.p.min" }
+        op: ">"
+        threshold: 2.0
+
+  - name: total_pressure_recovery
+    description: "总压恢复系数 p0_out / p0_in"
+    output_type: scalar
+    unit: "1"
+    type: expression
+    expression: "p0_out / p0_in"
+    inputs:
+      p0_out: { path: "tier_5.qoi.p0_outlet.value" }
+      p0_in:  { path: "tier_5.qoi.p0_inlet.value" }
+    confidence: MED
+    reference:
+      - "Hill & Peterson 1992 *Mechanics and Thermodynamics of Propulsion* §6.6"

@@ -1,0 +1,57 @@
+# Multibody dynamics canonical variable dictionary.
+# Source: simgraph-new 解析与入库设计 §5.4.I
+
+domain: multibody
+
+variables:
+
+  body_pose:
+    description: "刚体位姿（位置 + 方向）"
+    canonical_name: pose
+    unit: "(m, rad)"
+    physical_meaning: |
+      6-DoF 描述：3 个平动 (x,y,z) + 3 个转动 (roll, pitch, yaw)。
+      时序数据从 sixDoFRigidBodyMotion 状态文件读出。
+    aliases:
+      openfoam: ["6DoFRigidBodyMotionState", "position", "orientation"]
+      lsdyna:   ["RBDOUT"]
+
+  joint_angle:
+    description: "关节角度"
+    canonical_name: theta_joint
+    unit: rad
+    aliases:
+      openfoam: ["jointAngle"]
+
+  contact_force:
+    description: "接触力"
+    canonical_name: F_contact
+    unit: N
+    typical_range: [0.0, 1.0e8]
+    aliases:
+      openfoam: ["contactForce"]
+      lsdyna:   ["RCFORC", "NCFORC"]
+
+  relative_velocity:
+    description: "相对速度（两体之间）"
+    canonical_name: v_rel
+    unit: m/s
+    aliases:
+      openfoam: ["relativeVelocity"]
+
+  cross_solver_qoi_mappings:
+
+    n_bodies:
+      unit: "1"
+      sources:
+        openfoam:
+          - path: "tier_2_inventory.n_bodies"
+
+    n_contacts:
+      unit: "1"
+      sources:
+        openfoam:
+          - path: "tier_2_inventory.n_contacts"
+        lsdyna:
+          - file: "RCFORC"
+            note: "段数 = 接触对数"

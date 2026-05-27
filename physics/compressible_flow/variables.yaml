@@ -1,0 +1,84 @@
+# Compressible flow canonical variable dictionary.
+# Source: simgraph-new 解析与入库设计 §5.4.B
+
+domain: compressible_flow
+
+variables:
+
+  freestream_mach_number:
+    description: "来流马赫数（与 aerodynamics 共享定义）"
+    canonical_name: Ma_inf
+    unit: "1"
+    typical_range: [0.0, 30.0]
+    aliases:
+      openfoam: ["freestreamMach", "MachInf"]
+      fluent:   ["mach-number-inlet"]
+      cgns:     ["MachNumberInf"]
+
+  freestream_static_temperature:
+    description: "来流静温"
+    canonical_name: T_inf
+    unit: K
+    typical_range: [50.0, 5000.0]
+    aliases:
+      openfoam: ["freestreamT", "TInf"]
+      fluent:   ["total-temperature-inlet"]
+
+  freestream_static_pressure:
+    description: "来流静压"
+    canonical_name: p_inf
+    unit: Pa
+    typical_range: [10.0, 1.0e7]
+    aliases:
+      openfoam: ["freestreamP", "pInf"]
+      fluent:   ["static-pressure-inlet"]
+
+  total_temperature:
+    description: "总温（驻点温度）"
+    canonical_name: T0
+    unit: K
+    aliases:
+      openfoam: ["T_total", "T0"]
+      fluent:   ["total-temperature"]
+
+  total_pressure:
+    description: "总压（驻点压力）"
+    canonical_name: p0
+    unit: Pa
+    aliases:
+      openfoam: ["p_total", "p0"]
+      fluent:   ["total-pressure"]
+
+  gamma:
+    description: "比热比 Cp/Cv"
+    canonical_name: gamma
+    unit: "1"
+    typical_range: [1.1, 1.7]
+    physical_meaning: |
+      理想气体比热比。空气 ~1.4，单原子气体 ~1.667，水蒸汽 ~1.33。
+      来自 thermophysicalProperties (OpenFOAM) 或 materials (Fluent)。
+    aliases:
+      openfoam: ["gamma", "Cp/Cv"]
+      fluent:   ["specific-heat-ratio"]
+
+  cross_solver_qoi_mappings:
+
+    mach_max:
+      unit: "1"
+      sources:
+        openfoam:
+          - path: "tier_4.variable_ranges.Ma.max"
+
+    shock_strength:
+      unit: "1"
+      sources:
+        openfoam:
+          - expression: "(p2 - p1) / p1"
+            note: "p2/p1 为激波下游/上游静压；当前需手动取值"
+
+    total_pressure_recovery:
+      unit: "1"
+      sources:
+        openfoam:
+          - expression: "p0_out / p0_in"
+            note: "进出口总压比；用于喷管 / 进气道效率评估"

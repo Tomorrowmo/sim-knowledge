@@ -1,0 +1,49 @@
+# Multibody dynamics judgment criteria.
+# Source: simgraph-new 解析与入库设计 §5.4.I
+
+domain: multibody
+domain_description: "多体动力学 — 刚体数 / 关节 / 接触；最大接触力, 相对速度峰值"
+
+intents:
+
+  - name: n_bodies
+    description: "刚体数量"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 2, path: "n_bodies" }
+
+  - name: n_joints
+    description: "关节数量"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 2, path: "n_joints" }
+
+  - name: n_contacts
+    description: "接触对数"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 2, path: "n_contacts" }
+
+  - name: contact_force_max_N
+    description: "最大接触力"
+    output_type: scalar
+    unit: N
+    type: pluck
+    source: { tier: 4, path: "variable_ranges.F_contact.max" }
+
+  - name: relative_velocity_max_mps
+    description: "最大相对速度"
+    output_type: scalar
+    unit: m/s
+    type: pluck
+    source: { tier: 4, path: "variable_ranges.v_rel.max" }
+
+  - name: simulation_duration_s
+    description: "仿真时长"
+    output_type: scalar
+    unit: s
+    type: pluck
+    source: { tier: 3, path: "time_control.endTime" }

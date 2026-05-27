@@ -1,0 +1,72 @@
+# Aerothermal judgment criteria.
+# Source: simgraph-new 解析与入库设计 §5.4.C
+
+domain: aerothermal
+domain_description: "气动热 / 共轭传热 — 壁面温度、热流、Nu 数、过热判定"
+
+intents:
+
+  - name: T_max
+    description: "全场最大温度"
+    output_type: scalar
+    unit: K
+    type: pluck
+    source: { tier: 4, path: "variable_ranges.T.max" }
+
+  - name: T_min
+    description: "全场最小温度"
+    output_type: scalar
+    unit: K
+    type: pluck
+    source: { tier: 4, path: "variable_ranges.T.min" }
+
+  - name: T_wall_max
+    description: "壁面最高温度"
+    output_type: scalar
+    unit: K
+    type: pluck
+    source: { tier: 5, path: "qoi.wall_temperature_max.value" }
+
+  - name: T_wall_avg
+    description: "壁面平均温度"
+    output_type: scalar
+    unit: K
+    type: pluck
+    source: { tier: 5, path: "qoi.wall_temperature_mean.value" }
+
+  - name: wall_heat_flux_max
+    description: "壁面最大热流"
+    output_type: scalar
+    unit: W/m^2
+    type: pluck
+    source: { tier: 5, path: "qoi.wall_heat_flux_max.value" }
+
+  - name: is_overheated
+    description: "过热判定：壁温超过设计阈值"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 1
+    required_paths:
+      - "tier_5.qoi.wall_temperature_max.value"
+    criteria:
+      - name: wall_T_exceeds_threshold
+        path: "tier_5.qoi.wall_temperature_max.value"
+        op: ">"
+        threshold: 1500          # K, 默认值；可由 thresholds.yaml 按材料覆盖
+        skip_if_missing: true
+    reference:
+      - "Anderson 2019 *Hypersonic and High-Temperature Gas Dynamics* §15"
+
+  - name: cht_enabled
+    description: "是否为共轭传热模型"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 1
+    required_paths: []
+    criteria:
+      - name: solver_is_cht
+        path: "tier_1_identify.solver"
+        op: "contains"
+        threshold: "chtMultiRegion"

@@ -1,0 +1,73 @@
+# Aerothermal canonical variable dictionary.
+# Source: simgraph-new 解析与入库设计 §5.4.C
+
+domain: aerothermal
+
+variables:
+
+  inlet_temperature:
+    description: "进口温度（边界条件）"
+    canonical_name: T_inlet
+    unit: K
+    typical_range: [200.0, 3000.0]
+    aliases:
+      openfoam: ["T_inlet", "T.inlet"]
+      fluent:   ["total-temperature-inlet"]
+
+  wall_heat_flux:
+    description: "壁面热流密度"
+    canonical_name: q_wall
+    unit: W/m^2
+    typical_range: [-1.0e7, 1.0e7]
+    physical_meaning: |
+      壁面单位面积传热率。正值代表流体→壁面传热。
+      高超声速气动热典型量级 1e5-1e7 W/m^2。
+    aliases:
+      openfoam: ["wallHeatFlux", "qWall"]
+      fluent:   ["wall-heat-flux", "heat-flux"]
+
+  nusselt_number:
+    description: "局部努塞尔数"
+    canonical_name: Nu
+    unit: "1"
+    typical_range: [1.0, 1.0e5]
+    physical_meaning: |
+      Nu = h * L / k_fluid。表征对流相对于纯导热的强度。
+    aliases:
+      openfoam: ["Nu"]
+      fluent:   ["nusselt-number"]
+
+  biot_number:
+    description: "毕渥数"
+    canonical_name: Bi
+    unit: "1"
+    physical_meaning: |
+      Bi = h * L_solid / k_solid。> 0.1 时固体内温度梯度不可忽略，
+      用于判断 CHT 的必要性。
+
+  cht_enabled:
+    description: "是否启用共轭传热"
+    canonical_name: cht
+    unit: bool
+
+  cross_solver_qoi_mappings:
+
+    wall_heat_flux_max:
+      unit: W/m^2
+      sources:
+        openfoam:
+          - file: "postProcessing/wallHeatFlux*/<time>/wallHeatFlux.dat"
+            column: "max"
+            aggregator: last
+        fluent:
+          - file: "report-wall-heat-flux*.out"
+            column: "max"
+            aggregator: last
+
+    nusselt_avg:
+      unit: "1"
+      sources:
+        openfoam:
+          - file: "postProcessing/Nusselt*/<time>/Nu.dat"
+            column: "mean"
+            aggregator: last

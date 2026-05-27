@@ -1,0 +1,105 @@
+# Aerodynamics canonical variable dictionary.
+# Source: simgraph-new 解析与入库设计 §5.4.A
+
+domain: aerodynamics
+
+variables:
+
+  freestream_mach_number:
+    description: "来流马赫数（边界条件给定）"
+    canonical_name: Ma_inf
+    unit: "1"
+    typical_range: [0.0, 30.0]
+    physical_meaning: |
+      U_inf / c_inf。Ma<0.3 视为不可压；0.3-0.8 跨声速；
+      0.8-1.2 跨音速；1.2-5 超声速；>5 高超声速。
+    aliases:
+      openfoam: ["freestreamMach", "MachInf"]
+      fluent:   ["mach-number-inlet"]
+      cgns:     ["MachNumberInf"]
+
+  angle_of_attack:
+    description: "攻角"
+    canonical_name: aoa
+    unit: deg
+    typical_range: [-30.0, 30.0]
+    aliases:
+      openfoam: ["aoa", "alpha"]
+      fluent:   ["angle-of-attack"]
+
+  sideslip_angle:
+    description: "侧滑角"
+    canonical_name: aos
+    unit: deg
+    typical_range: [-30.0, 30.0]
+    aliases:
+      openfoam: ["aos", "beta"]
+
+  reference_area:
+    description: "气动参考面积"
+    canonical_name: A_ref
+    unit: m^2
+
+  reference_length:
+    description: "气动参考长度（弦长 / MAC）"
+    canonical_name: L_ref
+    unit: m
+
+  pressure_coefficient:
+    description: "压力系数 Cp = (p-p_inf)/(0.5*rho*U_inf^2)"
+    canonical_name: Cp
+    unit: "1"
+    typical_range: [-30.0, 1.0]
+    aliases:
+      openfoam: ["Cp", "pCoeff"]
+      fluent:   ["pressure-coefficient"]
+      cgns:     ["CoefficientPressure"]
+
+  cross_solver_qoi_mappings:
+
+    lift_coefficient:
+      unit: "1"
+      sources:
+        openfoam:
+          - file: "postProcessing/forceCoeffs*/<time>/forceCoeffs.dat"
+            column: "Cl"
+            aggregator: last
+        fluent:
+          - file: "report-cl*.out"
+            column: "lift"
+            aggregator: last
+        cgns:
+          - path: "/CGNSBase_*/IntegralData/LiftCoefficient"
+
+    drag_coefficient:
+      unit: "1"
+      sources:
+        openfoam:
+          - file: "postProcessing/forceCoeffs*/<time>/forceCoeffs.dat"
+            column: "Cd"
+            aggregator: last
+        fluent:
+          - file: "report-cd*.out"
+            column: "drag"
+            aggregator: last
+
+    pitching_moment_coefficient:
+      unit: "1"
+      sources:
+        openfoam:
+          - file: "postProcessing/forceCoeffs*/<time>/forceCoeffs.dat"
+            column: "Cm"
+            aggregator: last
+
+    lift_to_drag_ratio:
+      unit: "1"
+      sources:
+        openfoam:
+          - expression: "Cl / Cd"
+
+    reynolds_number:
+      unit: "1"
+      sources:
+        openfoam:
+          - expression: "rho * U_inf * L_ref / mu"
+            note: "rho/U_inf 来自 BC, L_ref 来自参考长度, mu 来自 transportProperties"

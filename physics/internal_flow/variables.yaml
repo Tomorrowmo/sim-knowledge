@@ -1,0 +1,69 @@
+# Internal flow canonical variable dictionary.
+# Source: simgraph-new 解析与入库设计 §5.4.F
+
+domain: internal_flow
+
+variables:
+
+  inlet_mass_flow:
+    description: "进口质量流量"
+    canonical_name: mdot_in
+    unit: kg/s
+    typical_range: [1.0e-6, 1.0e5]
+    aliases:
+      openfoam: ["mdot_in", "massFlowIn"]
+      fluent:   ["mass-flow-rate-inlet"]
+
+  outlet_mass_flow:
+    description: "出口质量流量"
+    canonical_name: mdot_out
+    unit: kg/s
+    aliases:
+      openfoam: ["mdot_out", "massFlowOut"]
+      fluent:   ["mass-flow-rate-outlet"]
+
+  inlet_total_pressure:
+    description: "进口总压"
+    canonical_name: p0_in
+    unit: Pa
+    aliases:
+      openfoam: ["p0_inlet"]
+      fluent:   ["total-pressure-inlet"]
+
+  outlet_total_pressure:
+    description: "出口总压"
+    canonical_name: p0_out
+    unit: Pa
+    aliases:
+      openfoam: ["p0_outlet"]
+      fluent:   ["total-pressure-outlet"]
+
+  swirl_number:
+    description: "旋流数 S"
+    canonical_name: S
+    unit: "1"
+    physical_meaning: |
+      S = 轴向角动量通量 / (轴向动量通量 × 特征半径)。
+      S > 0.6 视为强旋流；常见于燃烧室进口、涡轮机械。
+
+  rotational_speed:
+    description: "旋转参考系转速"
+    canonical_name: rpm
+    unit: 1/min
+    aliases:
+      openfoam: ["omega", "MRFomega"]
+      fluent:   ["rotational-speed", "rpm"]
+
+  cross_solver_qoi_mappings:
+
+    mass_imbalance_pct:
+      unit: "%"
+      sources:
+        openfoam:
+          - expression: "(mdot_in - mdot_out) / mdot_in * 100"
+
+    total_pressure_loss:
+      unit: Pa
+      sources:
+        openfoam:
+          - expression: "p0_in - p0_out"

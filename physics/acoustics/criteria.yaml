@@ -1,0 +1,52 @@
+# Acoustics judgment criteria.
+# Source: simgraph-new 解析与入库设计 §5.4.J
+
+domain: acoustics
+domain_description: "声学 — SPL 峰值 / 主频 / 观测点数 / 声功率"
+
+intents:
+
+  - name: oaspl_max_dB
+    description: "观测点最大总声压级 OASPL"
+    output_type: scalar
+    unit: dB
+    type: pluck
+    source: { tier: 4, path: "variable_ranges.SPL.max" }
+
+  - name: f_dominant_Hz
+    description: "主频（频谱峰值频率）"
+    output_type: scalar
+    unit: Hz
+    type: pluck
+    source: { tier: 4, path: "spectrum.peak_frequency" }
+
+  - name: n_observers
+    description: "FW-H 观测点数"
+    output_type: scalar
+    unit: "1"
+    type: pluck
+    source: { tier: 2, path: "post_processing.fwh.n_observers" }
+
+  - name: sound_power_W
+    description: "声功率（对 SPL 在频域/观测面上积分）"
+    output_type: scalar
+    unit: W
+    type: pluck
+    source: { tier: 5, path: "qoi.sound_power.value" }
+
+  - name: is_tonal_noise
+    description: "是否存在显著主频（音调噪声判定）"
+    output_type: boolean
+    unit: "boolean"
+    type: voting
+    voting_threshold: 1
+    required_paths:
+      - "tier_4.spectrum.peak_to_broadband_ratio"
+    criteria:
+      - name: peak_dominates_broadband
+        path: "tier_4.spectrum.peak_to_broadband_ratio"
+        op: ">"
+        threshold: 6.0          # dB, 经验值
+        skip_if_missing: true
+    reference:
+      - "ISO 3744 / 3745 噪声测试规范"
